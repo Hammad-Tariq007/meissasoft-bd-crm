@@ -10,11 +10,29 @@ from django.conf import settings
 
 # Third party imports
 from celery import shared_task
+from cryptography.hazmat.primitives.asymmetric import ec as _ec
 from pywebpush import webpush, WebPushException
 
 # Module imports
 from plane.db.models import WebPushSubscription
 from plane.utils.exception_logger import log_exception
+
+
+# Compatibility shim: pywebpush 1.14.0 calls ``ec.generate_private_key(ec.SECP256R1)``
+# passing the curve *class*, but cryptography>=42 removed that and now requires an
+# *instance* (``ec.SECP256R1()``), raising "curve must be an EllipticCurve instance".
+# We wrap generate_private_key to instantiate a curve class if one is passed. This is
+# a no-op for callers that already pass an instance.
+_orig_generate_private_key = _ec.generate_private_key
+
+
+def _generate_private_key_compat(curve, *args, **kwargs):
+    if isinstance(curve, type):
+        curve = curve()
+    return _orig_generate_private_key(curve, *args, **kwargs)
+
+
+_ec.generate_private_key = _generate_private_key_compat
 
 
 @shared_task
