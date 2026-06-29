@@ -13,6 +13,12 @@ const ProfileSettingsModal = lazy(() =>
   }))
 );
 
+const PushNotificationPrompt = lazy(() =>
+  import("@/components/workspace-notifications/push-permission-prompt").then((module) => ({
+    default: module.PushNotificationPrompt,
+  }))
+);
+
 type TGlobalModalsProps = {
   workspaceSlug: string;
 };
@@ -22,11 +28,13 @@ type TGlobalModalsProps = {
  *
  * This includes:
  * - Profile settings modal
+ * - Desktop (web push) notification opt-in prompt
  */
 export const GlobalModals = observer(function GlobalModals(_props: TGlobalModalsProps) {
   return (
     <Suspense fallback={null}>
       <ProfileSettingsModal />
+      <PushNotificationPrompt />
     </Suspense>
   );
 });
