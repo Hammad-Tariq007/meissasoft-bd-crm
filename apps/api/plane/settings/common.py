@@ -345,6 +345,11 @@ ANALYTICS_BASE_API = os.environ.get("ANALYTICS_BASE_API", False)
 POSTHOG_API_KEY = os.environ.get("POSTHOG_API_KEY", False)
 POSTHOG_HOST = os.environ.get("POSTHOG_HOST", False)
 
+# Web Push (VAPID) settings
+VAPID_PUBLIC_KEY = os.environ.get("VAPID_PUBLIC_KEY")
+VAPID_PRIVATE_KEY = os.environ.get("VAPID_PRIVATE_KEY")
+VAPID_SUBJECT = os.environ.get("VAPID_SUBJECT", "mailto:support@plane.so")
+
 # Skip environment variable configuration
 SKIP_ENV_VAR = os.environ.get("SKIP_ENV_VAR", "1") == "1"
 

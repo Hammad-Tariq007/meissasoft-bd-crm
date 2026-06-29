@@ -4,7 +4,7 @@
  * See the LICENSE file for details.
  */
 
-import { lazy, Suspense } from "react";
+import { lazy, Suspense, useEffect } from "react";
 import { useTheme } from "next-themes";
 import { SWRConfig } from "swr";
 // Plane Imports
@@ -33,6 +33,22 @@ export interface IAppProvider {
   children: React.ReactNode;
 }
 
+/**
+ * Component to register the push notification service worker
+ */
+function ServiceWorkerRegistration() {
+  useEffect(() => {
+    if (typeof window !== "undefined" && "serviceWorker" in navigator) {
+      // Register service worker for push notifications
+      navigator.serviceWorker.register("/push-sw.js").catch((error) => {
+        console.warn("Push service worker registration failed:", error);
+      });
+    }
+  }, []);
+
+  return null;
+}
+
 export function AppProvider(props: IAppProvider) {
   const { children } = props;
   // themes
@@ -41,6 +57,7 @@ export function AppProvider(props: IAppProvider) {
   return (
     <StoreProvider>
       <>
+        <ServiceWorkerRegistration />
         <AppProgressBar />
         <TranslationProvider>
           <Toast theme={resolveGeneralTheme(resolvedTheme)} />
