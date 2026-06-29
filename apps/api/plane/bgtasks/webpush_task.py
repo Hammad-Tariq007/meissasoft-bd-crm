@@ -25,15 +25,21 @@ def send_web_push(user_id, payload):
     delivered to the browser's service worker. Subscriptions that the push
     service reports as gone (404/410) are deleted so we stop retrying them.
     """
+    print(f"[WEBPUSH] send_web_push received: user_id={user_id}, payload={payload}")
+    
     # Web push can only be sent when the server has VAPID keys configured
     if not (settings.VAPID_PRIVATE_KEY and settings.VAPID_PUBLIC_KEY):
+        print("[WEBPUSH] No VAPID keys configured")
         return
 
     subscriptions = WebPushSubscription.objects.filter(user_id=user_id)
+    print(f"[WEBPUSH] Found {subscriptions.count()} subscriptions for user {user_id}")
+    
     data = json.dumps(payload)
 
     for subscription in subscriptions:
         try:
+            print(f"[WEBPUSH] Sending push to endpoint: {subscription.endpoint[:50]}...")
             webpush(
                 subscription_info={
                     "endpoint": subscription.endpoint,
@@ -46,14 +52,18 @@ def send_web_push(user_id, payload):
                 vapid_private_key=settings.VAPID_PRIVATE_KEY,
                 vapid_claims={"sub": settings.VAPID_SUBJECT},
             )
+            print(f"[WEBPUSH] Successfully sent push to {subscription.endpoint[:50]}...")
         except WebPushException as e:
             # The endpoint is gone (unsubscribed/expired) - remove it
             status_code = e.response.status_code if e.response is not None else None
+            print(f"[WEBPUSH] WebPushException: status_code={status_code}, error={e}")
             if status_code in (404, 410):
                 # hard delete so the same endpoint can be re-subscribed later
                 subscription.delete(soft=False)
+                print(f"[WEBPUSH] Deleted expired subscription")
             else:
                 log_exception(e)
         except Exception as e:
+            print(f"[WEBPUSH] Exception: {e}")
             log_exception(e)
     return
