@@ -252,29 +252,30 @@ def send_web_push_for_notifications(
             activity_verb = (notification.data or {}).get("issue_activity", {}).get("verb", "updated")
             issue_comment_text = (notification.data or {}).get("issue_activity", {}).get("issue_comment", "")
             
-            # Build Mattermost-style body with context
+            # Build Mattermost-style body with lead info
+            # Format: "Lead: [Issue Name] | From: actor\nmessage text"
             if "mention" in notification.sender:
-                body = f"{actor_name} mentioned you"
-                # Add comment preview if available
+                # Mattermost format with lead name and actor
+                body = f"Lead: {issue_name} | From: {actor_name}"
+                # Add comment text if available
                 if issue_comment_text:
-                    # Truncate to 100 chars for notification
-                    preview = issue_comment_text[:100].replace("\n", " ").strip()
-                    if len(issue_comment_text) > 100:
+                    # Truncate to 150 chars for notification
+                    preview = issue_comment_text[:150].replace("\n", " ").strip()
+                    if len(issue_comment_text) > 150:
                         preview += "..."
-                    body = f"{actor_name} mentioned you:\n{preview}"
+                    body = f"Lead: {issue_name} | From: {actor_name}\n{preview}"
             elif "comment" in activity_verb:
-                body = f"{actor_name} commented"
-                # Add comment preview if available
+                body = f"Lead: {issue_name} | From: {actor_name}"
+                # Add comment text if available
                 if issue_comment_text:
-                    preview = issue_comment_text[:100].replace("\n", " ").strip()
-                    if len(issue_comment_text) > 100:
+                    preview = issue_comment_text[:150].replace("\n", " ").strip()
+                    if len(issue_comment_text) > 150:
                         preview += "..."
-                    body = f"{actor_name} commented:\n{preview}"
+                    body = f"Lead: {issue_name} | From: {actor_name}\n{preview}"
             elif "assigned" in notification.sender:
-                body = f"Assigned to you"
+                body = f"Assigned to you on: {issue_name}"
             else:
-                body = f"{actor_name} {activity_verb}"
-
+                body = f"Lead: {issue_name} | From: {actor_name}"
             # Professional notification with metadata
             payload = {
                 "title": issue_name,
