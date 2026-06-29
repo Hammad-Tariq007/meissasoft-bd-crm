@@ -208,6 +208,12 @@ def send_web_push_for_notifications(
     """
     try:
         if not bulk_notifications or issue is None or not settings.WEB_URL:
+            if not bulk_notifications:
+                print("[PUSH] Early return: no bulk_notifications")
+            elif issue is None:
+                print("[PUSH] Early return: issue is None")
+            elif not settings.WEB_URL:
+                print("[PUSH] Early return: no WEB_URL configured")
             return
 
         # Only bother for receivers that actually have a push subscription
@@ -215,7 +221,11 @@ def send_web_push_for_notifications(
         receivers_with_push = set(
             WebPushSubscription.objects.filter(user_id__in=receiver_ids).values_list("user_id", flat=True)
         )
+        print(f"[PUSH] receiver_ids: {receiver_ids}")
+        print(f"[PUSH] receivers_with_push: {receivers_with_push}")
+        
         if not receivers_with_push:
+            print("[PUSH] Early return: no receivers_with_push")
             return
 
         # Map activity id -> comment id so comment/mention pushes can deep-link
@@ -237,6 +247,7 @@ def send_web_push_for_notifications(
 
             body = notification.title or notification.message or push_title
 
+            print(f"[PUSH] Queueing push for receiver_id={notification.receiver_id}, url={url}")
             send_web_push.delay(
                 str(notification.receiver_id),
                 {"title": push_title, "body": str(body), "url": url},
