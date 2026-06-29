@@ -133,3 +133,5 @@ from .draft import (
     DraftIssueSerializer,
     DraftIssueDetailSerializer,
 )
+
+from .push import WebPushSubscriptionSerializer
