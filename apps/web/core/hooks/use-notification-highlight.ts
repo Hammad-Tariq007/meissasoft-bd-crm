@@ -25,7 +25,7 @@ export const useNotificationHighlight = () => {
     // Function to highlight and scroll to comment
     const highlightComment = () => {
       // Try multiple selectors as the comment element might be nested differently
-      const selectors = [`[data-comment-id="${commentId}"]`, `#comment-${commentId}`, `[id*="${commentId}"]`];
+      const selectors = [`#${commentId}`, `[data-comment-id="${commentId}"]`, `[id*="${commentId}"]`];
 
       let commentElement = null;
       for (const selector of selectors) {

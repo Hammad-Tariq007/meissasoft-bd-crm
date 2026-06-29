@@ -246,16 +246,34 @@ def send_web_push_for_notifications(
             comment_id = activity_comment_map.get(str(activity_id))
             url = f"{issue_url}#comment-{comment_id}" if comment_id else issue_url
 
-            # Build professional notification payload
+            # Build professional notification payload (Mattermost-style)
             # Extract actor info for better formatting
             actor_name = (notification.data or {}).get("issue_activity", {}).get("actor", "Someone")
             activity_verb = (notification.data or {}).get("issue_activity", {}).get("verb", "updated")
+            issue_comment_text = (notification.data or {}).get("issue_activity", {}).get("issue_comment", "")
             
-            # Build human-readable body based on action
+            # Build Mattermost-style body with context
             if "mention" in notification.sender:
                 body = f"{actor_name} mentioned you"
+                # Add comment preview if available
+                if issue_comment_text:
+                    # Truncate to 100 chars for notification
+                    preview = issue_comment_text[:100].replace("
+", " ").strip()
+                    if len(issue_comment_text) > 100:
+                        preview += "..."
+                    body = f"{actor_name} mentioned you:
+{preview}"
             elif "comment" in activity_verb:
                 body = f"{actor_name} commented"
+                # Add comment preview if available
+                if issue_comment_text:
+                    preview = issue_comment_text[:100].replace("
+", " ").strip()
+                    if len(issue_comment_text) > 100:
+                        preview += "..."
+                    body = f"{actor_name} commented:
+{preview}"
             elif "assigned" in notification.sender:
                 body = f"Assigned to you"
             else:
