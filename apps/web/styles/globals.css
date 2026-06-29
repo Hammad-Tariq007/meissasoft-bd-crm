@@ -198,3 +198,30 @@
     0 0 4px --alpha(var(--background-color-accent-primary) / 40%) !important;
   will-change: transform, opacity;
 }
+
+/* Notification highlight animation for comments from push notifications */
+.notification-highlight {
+  animation: notificationHighlight 3s ease-in-out;
+}
+
+@keyframes notificationHighlight {
+  0% {
+    background-color: rgba(59, 130, 246, 0.3);
+    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.2);
+  }
+  50% {
+    background-color: rgba(59, 130, 246, 0.15);
+    box-shadow: 0 0 0 6px rgba(59, 130, 246, 0.1);
+  }
+  100% {
+    background-color: transparent;
+    box-shadow: 0 0 0 0 rgba(59, 130, 246, 0);
+  }
+}
+
+/* Ensure highlighted comments have proper visual treatment */
+[data-comment-id] {
+  transition:
+    background-color 0.3s ease,
+    box-shadow 0.3s ease;
+}

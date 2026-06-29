@@ -3,9 +3,9 @@
  * SPDX-License-Identifier: AGPL-3.0-only
  * See the LICENSE file for details.
  *
- * Service worker dedicated to web push notifications. It renders the push
- * payload sent by the backend (title / body / icon) and deep-links to the
- * work item when the notification is clicked.
+ * Service worker dedicated to web push notifications. It renders professional,
+ * Slack/WhatsApp-style notifications and deep-links to specific messages with
+ * highlighting when clicked.
  */
 
 /* eslint-disable no-undef */
@@ -30,13 +30,44 @@ self.addEventListener("push", (event) => {
     payload = { body: event.data ? event.data.text() : "" };
   }
 
-  const title = payload.title || "Plane";
+  // Build professional notification format
+  const issueIdentifier = payload.issueIdentifier || "Issue";
+  const title = `${issueIdentifier}: ${payload.title || "Update"}`;
+  const body = payload.body || "You have a new notification";
+
   const options = {
-    body: payload.body || "",
+    body: body,
     icon: payload.icon || DEFAULT_ICON,
     badge: payload.badge || DEFAULT_ICON,
-    // carry the deep-link url through to the notificationclick handler
-    data: { url: payload.url || "/" },
+    tag: payload.tag || "plane-notification", // Group notifications by issue
+    requireInteraction: false, // Auto-dismiss after a while
+
+    // Professional visual styling
+    vibrate: [200, 100, 200], // Subtle vibration pattern
+    silent: false,
+
+    // Actions for user interaction (optional, not all browsers support)
+    actions: [
+      {
+        action: "open",
+        title: "Open",
+      },
+      {
+        action: "close",
+        title: "Dismiss",
+      },
+    ],
+
+    // Carry metadata through to the notificationclick handler
+    data: {
+      url: payload.url || "/",
+      issueId: payload.issueId,
+      commentId: payload.commentId,
+      projectId: payload.projectId,
+      workspaceSlug: payload.workspaceSlug,
+      issueIdentifier: payload.issueIdentifier,
+      timestamp: Date.now(),
+    },
   };
 
   event.waitUntil(self.registration.showNotification(title, options));
@@ -45,20 +76,45 @@ self.addEventListener("push", (event) => {
 self.addEventListener("notificationclick", (event) => {
   event.notification.close();
 
-  const targetUrl = (event.notification.data && event.notification.data.url) || "/";
+  const data = event.notification.data || {};
+  let targetUrl = data.url || "/";
+
+  // Build URL with anchor to comment if available
+  if (data.commentId) {
+    // Ensure commentId is properly anchored for frontend routing
+    if (!targetUrl.includes("#")) {
+      targetUrl = `${targetUrl}#comment-${data.commentId}`;
+    }
+  }
+
+  // Include metadata in URL for frontend to handle highlighting
+  const urlWithMetadata = new URL(targetUrl, self.location.origin);
+  urlWithMetadata.searchParams.set("_highlightComment", data.commentId || "");
+  const finalUrl = urlWithMetadata.href;
 
   event.waitUntil(
     self.clients.matchAll({ type: "window", includeUncontrolled: true }).then((clientList) => {
-      // focus an existing tab and navigate it to the work item if one is open
+      // Try to focus existing window/tab and navigate to the URL
       for (const client of clientList) {
         if ("focus" in client) {
-          if ("navigate" in client) client.navigate(targetUrl);
+          if ("navigate" in client) {
+            client.navigate(finalUrl);
+          }
           return client.focus();
         }
       }
-      // otherwise open a new window
-      if (self.clients.openWindow) return self.clients.openWindow(targetUrl);
+
+      // If no window exists, open a new one
+      if (self.clients.openWindow) {
+        return self.clients.openWindow(finalUrl);
+      }
       return undefined;
     })
   );
+});
+
+// Handle notification action clicks (for buttons)
+self.addEventListener("notificationclose", (event) => {
+  // Optional: Track when notifications are dismissed
+  console.log("[SW] Notification dismissed:", event.notification.data);
 });

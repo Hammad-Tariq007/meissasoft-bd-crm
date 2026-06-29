@@ -235,7 +235,8 @@ def send_web_push_for_notifications(
         }
 
         issue_url = f"{settings.WEB_URL}/{project.workspace.slug}/projects/{project_id}/issues/{issue_id}"
-        push_title = f"{project.identifier}-{issue.sequence_id} {issue.name}"
+        push_title = f"{project.identifier}-{issue.sequence_id}"
+        issue_name = issue.name
 
         for notification in bulk_notifications:
             if str(notification.receiver_id) not in receivers_with_push:
@@ -243,14 +244,42 @@ def send_web_push_for_notifications(
 
             activity_id = (notification.data or {}).get("issue_activity", {}).get("id")
             comment_id = activity_comment_map.get(str(activity_id))
-            url = f"{issue_url}?commentId={comment_id}" if comment_id else issue_url
+            url = f"{issue_url}#comment-{comment_id}" if comment_id else issue_url
 
-            body = notification.title or notification.message or push_title
+            # Build professional notification payload
+            # Extract actor info for better formatting
+            actor_name = (notification.data or {}).get("issue_activity", {}).get("actor", "Someone")
+            activity_verb = (notification.data or {}).get("issue_activity", {}).get("verb", "updated")
+            
+            # Build human-readable body based on action
+            if "mention" in notification.sender:
+                body = f"{actor_name} mentioned you"
+            elif "comment" in activity_verb:
+                body = f"{actor_name} commented"
+            elif "assigned" in notification.sender:
+                body = f"Assigned to you"
+            else:
+                body = f"{actor_name} {activity_verb}"
 
-            print(f"[PUSH] Queueing push for receiver_id={notification.receiver_id}, url={url}")
+            # Professional notification with metadata
+            payload = {
+                "title": issue_name,
+                "body": body,
+                "tag": f"issue-{issue_id}",  # Group notifications by issue
+                "badge": "/icons/icon-192x192.png",
+                "icon": "/icons/icon-192x192.png",
+                "url": url,
+                "issueId": str(issue_id),
+                "commentId": comment_id,
+                "projectId": str(project_id),
+                "workspaceSlug": project.workspace.slug,
+                "issueIdentifier": f"{project.identifier}-{issue.sequence_id}",
+            }
+
+            print(f"[PUSH] Queueing push for receiver_id={notification.receiver_id}, url={url}, commentId={comment_id}")
             send_web_push.delay(
                 str(notification.receiver_id),
-                {"title": push_title, "body": str(body), "url": url},
+                payload,
             )
     except Exception as e:
         log_exception(e)

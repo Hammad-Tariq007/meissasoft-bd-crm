@@ -7,6 +7,8 @@
 import { useMemo } from "react";
 import uniq from "lodash-es/uniq";
 import { observer } from "mobx-react";
+// hooks
+import { useNotificationHighlight } from "@/hooks/use-notification-highlight";
 // plane package imports
 import type { TActivityFilters } from "@plane/constants";
 import { E_SORT_ORDER, defaultActivityFilters, EUserPermissions } from "@plane/constants";
@@ -53,6 +55,9 @@ export const IssueActivity = observer(function IssueActivity(props: TIssueActivi
     defaultActivityFilters
   );
   const { setValue: setSortOrder, storedValue: sortOrder } = useLocalStorage("activity_sort_order", E_SORT_ORDER.ASC);
+  // notification highlight for push notifications
+  useNotificationHighlight();
+
   // store hooks
   const {
     issue: { getIssueById },
