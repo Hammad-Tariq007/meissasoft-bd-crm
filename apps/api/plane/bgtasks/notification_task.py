@@ -218,9 +218,9 @@ def send_web_push_for_notifications(
 
         # Only bother for receivers that actually have a push subscription
         receiver_ids = {notification.receiver_id for notification in bulk_notifications}
-        receivers_with_push = set(
-            WebPushSubscription.objects.filter(user_id__in=receiver_ids).values_list("user_id", flat=True)
-        )
+        receivers_with_push = {
+            str(uid) for uid in WebPushSubscription.objects.filter(user_id__in=receiver_ids).values_list("user_id", flat=True)
+        }
         print(f"[PUSH] receiver_ids: {receiver_ids}")
         print(f"[PUSH] receivers_with_push: {receivers_with_push}")
         
@@ -238,7 +238,7 @@ def send_web_push_for_notifications(
         push_title = f"{project.identifier}-{issue.sequence_id} {issue.name}"
 
         for notification in bulk_notifications:
-            if notification.receiver_id not in receivers_with_push:
+            if str(notification.receiver_id) not in receivers_with_push:
                 continue
 
             activity_id = (notification.data or {}).get("issue_activity", {}).get("id")
