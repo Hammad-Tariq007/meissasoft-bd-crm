@@ -23,7 +23,11 @@ from plane.db.models import (
     IssueActivity,
     UserNotificationPreference,
     ProjectMember,
+    WebPushSubscription,
 )
+from plane.bgtasks.webpush_task import send_web_push
+from plane.utils.exception_logger import log_exception
+from django.conf import settings
 from django.db.models import Subquery
 
 # Third Party imports
@@ -185,6 +189,61 @@ def create_mention_notification(project, notification_comment, issue, actor_id, 
             },
         },
     )
+
+
+# =========== Web Push Notification Functions ======================
+def send_web_push_for_notifications(
+    bulk_notifications,
+    issue,
+    project,
+    issue_id,
+    project_id,
+    issue_activities_created,
+):
+    """Queue a web push for each in-app notification that was just created.
+
+    Builds a payload with a title, body and a URL that deep-links to the work
+    item (with the comment id when the notification is about a comment/mention)
+    and dispatches it to the worker so the request is never blocked.
+    """
+    try:
+        if not bulk_notifications or issue is None or not settings.WEB_URL:
+            return
+
+        # Only bother for receivers that actually have a push subscription
+        receiver_ids = {notification.receiver_id for notification in bulk_notifications}
+        receivers_with_push = set(
+            WebPushSubscription.objects.filter(user_id__in=receiver_ids).values_list("user_id", flat=True)
+        )
+        if not receivers_with_push:
+            return
+
+        # Map activity id -> comment id so comment/mention pushes can deep-link
+        activity_comment_map = {
+            str(activity.get("id")): activity.get("issue_comment")
+            for activity in (issue_activities_created or [])
+        }
+
+        issue_url = f"{settings.WEB_URL}/{project.workspace.slug}/projects/{project_id}/issues/{issue_id}"
+        push_title = f"{project.identifier}-{issue.sequence_id} {issue.name}"
+
+        for notification in bulk_notifications:
+            if notification.receiver_id not in receivers_with_push:
+                continue
+
+            activity_id = (notification.data or {}).get("issue_activity", {}).get("id")
+            comment_id = activity_comment_map.get(str(activity_id))
+            url = f"{issue_url}?commentId={comment_id}" if comment_id else issue_url
+
+            body = notification.title or notification.message or push_title
+
+            send_web_push.delay(
+                str(notification.receiver_id),
+                {"title": push_title, "body": str(body), "url": url},
+            )
+    except Exception as e:
+        log_exception(e)
+    return
 
 
 @shared_task
@@ -668,6 +727,17 @@ def notifications(
             # Bulk create notifications
             Notification.objects.bulk_create(bulk_notifications, batch_size=100)
             EmailNotificationLog.objects.bulk_create(bulk_email_logs, batch_size=100, ignore_conflicts=True)
+
+            # For every in-app notification we just created, also fire a web
+            # push to the receiver's subscribed devices (async, never blocking).
+            send_web_push_for_notifications(
+                bulk_notifications=bulk_notifications,
+                issue=issue,
+                project=project,
+                issue_id=issue_id,
+                project_id=project_id,
+                issue_activities_created=issue_activities_created,
+            )
         return
     except Exception as e:
         print(e)
