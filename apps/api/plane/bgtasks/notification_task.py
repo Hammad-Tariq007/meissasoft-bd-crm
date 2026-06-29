@@ -252,21 +252,16 @@ def send_web_push_for_notifications(
             activity_verb = (notification.data or {}).get("issue_activity", {}).get("verb", "updated")
             issue_comment_text = (notification.data or {}).get("issue_activity", {}).get("issue_comment", "")
             
-            # Build notification body with lead, actor, and message
-            # Format: "Lead: [Issue Name] | From: actor_name\nmessage_preview"
-            if "mention" in notification.sender or "comment" in activity_verb:
-                if issue_comment_text:
-                    # Truncate to 150 chars for notification
-                    preview = issue_comment_text[:150].replace("\n", " ").strip()
-                    if len(issue_comment_text) > 150:
-                        preview += "..."
-                    body = f"Lead: {issue_name} | From: {actor_name}\n{preview}"
-                else:
-                    body = f"Lead: {issue_name} | From: {actor_name}"
+            # Build simple notification body
+            # Format: "actor_name mentioned you in a comment" (no message preview)
+            if "mention" in notification.sender:
+                body = f"{actor_name} mentioned you in a comment"
+            elif "comment" in activity_verb:
+                body = f"{actor_name} commented on this"
             elif "assigned" in notification.sender:
-                body = f"Assigned to you on: {issue_name}"
+                body = f"Assigned to you"
             else:
-                body = f"Lead: {issue_name} | From: {actor_name}"
+                body = f"{actor_name} {activity_verb}"
             payload = {
                 "title": issue_name,
                 "body": body,
