@@ -59,6 +59,7 @@ export function CustomImageBlock(props: CustomImageBlockProps) {
   });
   const [isResizing, setIsResizing] = useState(false);
   const [initialResizeComplete, setInitialResizeComplete] = useState(false);
+  const [isFullScreenEnabled, setIsFullScreenEnabled] = useState(false);
   // refs
   const containerRef = useRef<HTMLDivElement>(null);
   const containerRect = useRef<DOMRect | null>(null);
@@ -252,6 +253,9 @@ export function CustomImageBlock(props: CustomImageBlockProps) {
           src={displayedImageSrc}
           alt=""
           onLoad={handleImageLoad}
+          onDoubleClick={() => {
+            if (showImageToolbar) setIsFullScreenEnabled(true);
+          }}
           onError={(_e) =>
             void (async () => {
               // for old image extension this command doesn't exist or if the image failed to load for the first time
@@ -314,9 +318,11 @@ export function CustomImageBlock(props: CustomImageBlockProps) {
               updateAttributesSafely({ alignment }, "Failed to update attributes while changing alignment:")
             }
             height={size.height}
+            isFullScreenEnabled={isFullScreenEnabled}
             isTouchDevice={isTouchDevice}
             width={size.width}
             src={resolvedImageSrc}
+            toggleFullScreenMode={setIsFullScreenEnabled}
           />
         )}
         {selected && displayedImageSrc === resolvedImageSrc && (
