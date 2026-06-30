@@ -499,6 +499,7 @@ export default {
     modules: "Modules",
     labels: "Labels",
     label: "Label",
+    custom_fields: "Custom fields",
     admins: "Admins",
     users: "Users",
     guests: "Guests",
@@ -1733,6 +1734,23 @@ export default {
       label_max_char: "Label name should not exceed 255 characters",
       toast: {
         error: "Error while updating the label",
+      },
+    },
+    custom_fields: {
+      heading: "Custom fields",
+      description: "Define custom fields to capture extra information on your work items.",
+      add_field: "Add field",
+      field_name: "Field name",
+      field_name_is_required: "Field name is required",
+      field_name_max_char: "Field name should not exceed 255 characters",
+      field_type: "Field type",
+      required: "Required",
+      add_option: "Add option",
+      option_name: "Option name",
+      option_name_is_required: "Option name is required",
+      empty_options: "Add at least one option for this field.",
+      toast: {
+        error: "Error while updating the custom field",
       },
     },
     estimates: {
