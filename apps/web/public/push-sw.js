@@ -30,9 +30,9 @@ self.addEventListener("push", (event) => {
     payload = { body: event.data ? event.data.text() : "" };
   }
 
-  // Build professional notification format
-  const issueIdentifier = payload.issueIdentifier || "Issue";
-  const title = `${issueIdentifier}: ${payload.title || "Update"}`;
+  // The backend composes the full title ("<ID>: <name> | <sender>"); render it
+  // as-is and fall back to the work item identifier or a generic label.
+  const title = payload.title || payload.issueIdentifier || "Notification";
   const body = payload.body || "You have a new notification";
 
   const options = {

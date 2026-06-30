@@ -247,6 +247,20 @@ def send_web_push_for_notifications(
             for activity in (issue_activities_created or [])
         }
 
+        # Map activity id -> a plain-text message preview. Comment bodies arrive as
+        # HTML in the activity's "new_value", so strip the tags and truncate.
+        def _comment_preview(activity):
+            raw = (activity or {}).get("new_value") or ""
+            if not raw:
+                return ""
+            text = " ".join(BeautifulSoup(raw, "html.parser").get_text(" ", strip=True).split())
+            return f"{text[:117].rstrip()}…" if len(text) > 120 else text
+
+        activity_preview_map = {
+            str(activity.get("id")): _comment_preview(activity)
+            for activity in (issue_activities_created or [])
+        }
+
         issue_url = f"{settings.WEB_URL}/{project.workspace.slug}/projects/{project_id}/issues/{issue_id}"
         push_title = f"{project.identifier}-{issue.sequence_id}"
         issue_name = issue.name
@@ -259,24 +273,28 @@ def send_web_push_for_notifications(
             comment_id = activity_comment_map.get(str(activity_id))
             url = f"{issue_url}#comment-{comment_id}" if comment_id else issue_url
 
-            # Build professional notification payload (Mattermost-style)
-            # Extract actor info for better formatting
+            # Resolve the actor and a message preview for this activity.
             actor_name = activity_actor_map.get(str(activity_id)) or "Someone"
             activity_verb = (notification.data or {}).get("issue_activity", {}).get("verb", "updated")
-            issue_comment_text = (notification.data or {}).get("issue_activity", {}).get("issue_comment", "")
-            
-            # Build simple notification body
-            # Format: "actor_name mentioned you in a comment" (no message preview)
-            if "mention" in notification.sender:
+            preview = activity_preview_map.get(str(activity_id)) or ""
+
+            # Title: "<IDENTIFIER>: <work item name> | <actor>"
+            title = f"{project.identifier}-{issue.sequence_id}: {issue_name} | {actor_name}"
+
+            # Body: the message preview when we have one, otherwise a short action
+            # phrase so the notification is never blank.
+            if preview:
+                body = preview
+            elif "mention" in notification.sender:
                 body = f"{actor_name} mentioned you in a comment"
             elif "comment" in activity_verb:
                 body = f"{actor_name} commented on this"
             elif "assigned" in notification.sender:
-                body = f"Assigned to you"
+                body = "Assigned to you"
             else:
                 body = f"{actor_name} {activity_verb}"
             payload = {
-                "title": issue_name,
+                "title": title,
                 "body": body,
                 "tag": f"issue-{issue_id}",  # Group notifications by issue
                 "badge": "/icons/icon-192x192.png",
