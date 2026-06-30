@@ -312,9 +312,9 @@ class CustomFieldValueViewSet(BaseViewSet):
             )
 
         # Model-level validation (URL format, option ownership, field coercion).
-        # workspace is set on save(); value_options is M2M (set after save).
+        # Exclude fields populated on save() (workspace, audit FKs) and the M2M.
         try:
-            obj.full_clean(exclude=["workspace", "value_options"])
+            obj.full_clean(exclude=["workspace", "value_options", "created_by", "updated_by"])
         except DjangoValidationError as error:
             detail = error.message_dict if hasattr(error, "message_dict") else error.messages
             return Response({"error": detail}, status=status.HTTP_400_BAD_REQUEST)
