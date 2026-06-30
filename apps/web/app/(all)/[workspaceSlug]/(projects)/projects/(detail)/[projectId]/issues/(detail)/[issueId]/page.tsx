@@ -22,14 +22,17 @@ import type { Route } from "./+types/page";
 
 const issueService = new IssueService();
 
-export async function clientLoader({ params }: Route.ClientLoaderArgs) {
+export async function clientLoader({ params, request }: Route.ClientLoaderArgs) {
   const { workspaceSlug, projectId, issueId } = params;
 
   try {
     const data = await issueService.getIssueMetaFromURL(workspaceSlug, projectId, issueId);
 
     if (data) {
-      throw redirect(`/${workspaceSlug}/browse/${data.project_identifier}-${data.sequence_id}`);
+      // Preserve the query string (e.g. ?commentId=<id> from a push notification
+      // deep-link) when redirecting to the canonical browse URL.
+      const { search } = new URL(request.url);
+      throw redirect(`/${workspaceSlug}/browse/${data.project_identifier}-${data.sequence_id}${search}`);
     }
 
     return { error: true, workspaceSlug };

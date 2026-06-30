@@ -9,11 +9,13 @@ import { useSearchParams } from "next/navigation";
 
 const HIGHLIGHT_CLASS = "notification-highlight";
 const HIGHLIGHT_DURATION_MS = 3000;
-// Comments can render slightly after this hook mounts (or the page may still be
-// loading when arriving from a push notification), so retry locating the element
-// for a bounded window instead of giving up immediately.
-const MAX_ATTEMPTS = 20;
-const RETRY_INTERVAL_MS = 300;
+// When arriving from a push notification the page loads cold: the work item,
+// its activity and the comments are each fetched before the target comment is
+// in the DOM. Wait (via a MutationObserver) up to this long for it to appear.
+const GIVE_UP_AFTER_MS = 30000;
+// The description editor / activity feed keep growing after the comment first
+// mounts, shifting its position, so re-scroll a couple of times once it settles.
+const RESCROLL_DELAYS_MS = [400, 1200];
 
 /**
  * Highlights and scrolls to a comment when the work item is opened from a push
@@ -36,9 +38,11 @@ export const useNotificationHighlight = () => {
     const targetId = commentIdParam || hashComment || legacyParam;
     if (!targetId) return;
 
-    let attempts = 0;
-    let retryTimeout: ReturnType<typeof setTimeout> | undefined;
+    let done = false;
+    let observer: MutationObserver | undefined;
+    let giveUpTimeout: ReturnType<typeof setTimeout> | undefined;
     let fadeTimeout: ReturnType<typeof setTimeout> | undefined;
+    const reScrollTimeouts: ReturnType<typeof setTimeout>[] = [];
     let highlightedEl: HTMLElement | null = null;
 
     const findCommentElement = (): HTMLElement | null => {
@@ -58,6 +62,12 @@ export const useNotificationHighlight = () => {
       return null;
     };
 
+    const stopWaiting = () => {
+      observer?.disconnect();
+      observer = undefined;
+      if (giveUpTimeout) clearTimeout(giveUpTimeout);
+    };
+
     // Strip only the comment-related params so a refresh / back navigation does
     // not re-trigger the highlight, while preserving any other query params.
     const clearDeepLinkFromUrl = () => {
@@ -65,40 +75,50 @@ export const useNotificationHighlight = () => {
       url.searchParams.delete("commentId");
       url.searchParams.delete("_highlightComment");
       url.hash = "";
-      const cleaned = `${url.pathname}${url.search}`;
-      window.history.replaceState(window.history.state, document.title, cleaned);
+      window.history.replaceState(window.history.state, document.title, `${url.pathname}${url.search}`);
     };
 
-    const highlight = () => {
-      const el = findCommentElement();
-      if (!el) {
-        attempts += 1;
-        if (attempts >= MAX_ATTEMPTS) return; // comments never showed up — stop retrying
-        retryTimeout = setTimeout(highlight, RETRY_INTERVAL_MS);
-        return;
-      }
+    const scrollToComment = (el: HTMLElement) => el.scrollIntoView({ behavior: "smooth", block: "center" });
 
-      el.scrollIntoView({ behavior: "smooth", block: "center" });
+    const highlightComment = (el: HTMLElement) => {
+      if (done) return;
+      done = true;
+      stopWaiting();
 
-      // Restart the CSS fade animation cleanly if the class is somehow present.
+      scrollToComment(el);
+      // Correct the position after late-loading content shifts the layout.
+      RESCROLL_DELAYS_MS.forEach((delay) => {
+        reScrollTimeouts.push(setTimeout(() => scrollToComment(el), delay));
+      });
+
+      // Restart the CSS fade cleanly even if the class is somehow already set.
       el.classList.remove(HIGHLIGHT_CLASS);
-      // force reflow so re-adding the class replays the animation
-      void el.offsetWidth;
+      void el.offsetWidth; // force reflow so re-adding the class replays the animation
       el.classList.add(HIGHLIGHT_CLASS);
       highlightedEl = el;
-
-      fadeTimeout = setTimeout(() => {
-        el.classList.remove(HIGHLIGHT_CLASS);
-      }, HIGHLIGHT_DURATION_MS);
+      fadeTimeout = setTimeout(() => el.classList.remove(HIGHLIGHT_CLASS), HIGHLIGHT_DURATION_MS);
 
       clearDeepLinkFromUrl();
     };
 
-    highlight();
+    // The comment may already be present (warm navigation); otherwise watch the
+    // DOM until it mounts.
+    const existing = findCommentElement();
+    if (existing) {
+      highlightComment(existing);
+    } else {
+      observer = new MutationObserver(() => {
+        const el = findCommentElement();
+        if (el) highlightComment(el);
+      });
+      observer.observe(document.body, { childList: true, subtree: true });
+      giveUpTimeout = setTimeout(stopWaiting, GIVE_UP_AFTER_MS);
+    }
 
     return () => {
-      if (retryTimeout) clearTimeout(retryTimeout);
+      stopWaiting();
       if (fadeTimeout) clearTimeout(fadeTimeout);
+      reScrollTimeouts.forEach(clearTimeout);
       if (highlightedEl) highlightedEl.classList.remove(HIGHLIGHT_CLASS);
     };
   }, [commentIdParam]);
