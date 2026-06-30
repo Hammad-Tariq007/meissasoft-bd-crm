@@ -234,6 +234,19 @@ def send_web_push_for_notifications(
             for activity in (issue_activities_created or [])
         }
 
+        # Map activity id -> actor display name. The activity carries the actor
+        # under "actor_detail" (not a flat "actor_id"), so resolve the name here
+        # for the push body instead of relying on notification.data.
+        def _actor_display_name(activity):
+            detail = (activity or {}).get("actor_detail") or {}
+            full_name = f"{detail.get('first_name') or ''} {detail.get('last_name') or ''}".strip()
+            return full_name or detail.get("display_name") or "Someone"
+
+        activity_actor_map = {
+            str(activity.get("id")): _actor_display_name(activity)
+            for activity in (issue_activities_created or [])
+        }
+
         issue_url = f"{settings.WEB_URL}/{project.workspace.slug}/projects/{project_id}/issues/{issue_id}"
         push_title = f"{project.identifier}-{issue.sequence_id}"
         issue_name = issue.name
@@ -248,7 +261,7 @@ def send_web_push_for_notifications(
 
             # Build professional notification payload (Mattermost-style)
             # Extract actor info for better formatting
-            actor_name = (notification.data or {}).get("issue_activity", {}).get("actor", "Someone")
+            actor_name = activity_actor_map.get(str(activity_id)) or "Someone"
             activity_verb = (notification.data or {}).get("issue_activity", {}).get("verb", "updated")
             issue_comment_text = (notification.data or {}).get("issue_activity", {}).get("issue_comment", "")
             
