@@ -228,6 +228,37 @@ def send_web_push_for_notifications(
             print("[PUSH] Early return: no receivers_with_push")
             return
 
+        # Per-receiver notification preferences gate which pushes go out, using the
+        # same toggles (Profile > Notifications) that gate email notifications.
+        preferences = {
+            str(pref.user_id): pref
+            for pref in UserNotificationPreference.objects.filter(user_id__in=receiver_ids)
+        }
+
+        def _push_allowed(notification):
+            preference = preferences.get(str(notification.receiver_id))
+            if preference is None:
+                return True  # no stored preference — default to sending
+            activity = (notification.data or {}).get("issue_activity", {})
+            field = activity.get("field")
+            # Mentions (in a comment or the description)
+            if "mention" in (notification.sender or ""):
+                return preference.mention
+            # State changes, including work item completion
+            if field == "state":
+                new_state_id = activity.get("new_identifier")
+                is_completed = bool(new_state_id) and State.objects.filter(
+                    project_id=project_id, pk=new_state_id, group="completed"
+                ).exists()
+                if is_completed:
+                    return preference.state_change or preference.issue_completed
+                return preference.state_change
+            # New comments
+            if field == "comment":
+                return preference.comment
+            # Any other property change (assignee, priority, estimate, labels, ...)
+            return preference.property_change
+
         # Map activity id -> comment id so comment/mention pushes can deep-link
         activity_comment_map = {
             str(activity.get("id")): activity.get("issue_comment")
@@ -267,6 +298,10 @@ def send_web_push_for_notifications(
 
         for notification in bulk_notifications:
             if str(notification.receiver_id) not in receivers_with_push:
+                continue
+
+            # Respect the receiver's notification preferences for this event type.
+            if not _push_allowed(notification):
                 continue
 
             activity_id = (notification.data or {}).get("issue_activity", {}).get("id")
