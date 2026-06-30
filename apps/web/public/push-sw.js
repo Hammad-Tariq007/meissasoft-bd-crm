@@ -74,42 +74,53 @@ self.addEventListener("push", (event) => {
 });
 
 self.addEventListener("notificationclick", (event) => {
+  // Always dismiss the notification first.
   event.notification.close();
 
+  // Ignore the explicit "Dismiss" action button.
+  if (event.action === "close") return;
+
   const data = event.notification.data || {};
-  let targetUrl = data.url || "/";
 
-  // Build URL with anchor to comment if available
+  // Resolve the work item URL from the notification payload and normalize it so
+  // the comment reference is carried as a `?commentId=<id>` query param (the
+  // frontend reads it from the query string to scroll/highlight the comment).
+  const target = new URL(data.url || "/", self.location.origin);
+  // Drop any pre-existing `#comment-...` hash from the payload url.
+  target.hash = "";
   if (data.commentId) {
-    // Ensure commentId is properly anchored for frontend routing
-    if (!targetUrl.includes("#")) {
-      targetUrl = `${targetUrl}#comment-${data.commentId}`;
-    }
+    target.searchParams.set("commentId", data.commentId);
   }
-
-  // Include metadata in URL for frontend to handle highlighting
-  const urlWithMetadata = new URL(targetUrl, self.location.origin);
-  urlWithMetadata.searchParams.set("_highlightComment", data.commentId || "");
-  const finalUrl = urlWithMetadata.href;
+  const finalUrl = target.href;
 
   event.waitUntil(
-    self.clients.matchAll({ type: "window", includeUncontrolled: true }).then((clientList) => {
-      // Try to focus existing window/tab and navigate to the URL
+    (async () => {
+      const clientList = await self.clients.matchAll({ type: "window", includeUncontrolled: true });
+
+      // Prefer focusing an already-open window and navigating it to the work item.
       for (const client of clientList) {
         if ("focus" in client) {
-          if ("navigate" in client) {
-            client.navigate(finalUrl);
+          try {
+            // `navigate` only works for clients this service worker controls and
+            // can reject otherwise — fall back to opening a fresh window below.
+            if ("navigate" in client && client.url !== finalUrl) {
+              const navigated = await client.navigate(finalUrl);
+              if (navigated) return navigated.focus();
+            }
+            return client.focus();
+          } catch (error) {
+            // Controlled-client navigation failed; open a new window instead so
+            // the work item still opens end-to-end.
+            if (self.clients.openWindow) return self.clients.openWindow(finalUrl);
+            return undefined;
           }
-          return client.focus();
         }
       }
 
-      // If no window exists, open a new one
-      if (self.clients.openWindow) {
-        return self.clients.openWindow(finalUrl);
-      }
+      // No existing window — open a new one.
+      if (self.clients.openWindow) return self.clients.openWindow(finalUrl);
       return undefined;
-    })
+    })()
   );
 });
 

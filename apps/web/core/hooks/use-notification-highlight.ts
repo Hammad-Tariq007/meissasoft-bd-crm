@@ -5,67 +5,101 @@
  */
 
 import { useEffect } from "react";
+import { useSearchParams } from "next/navigation";
+
+const HIGHLIGHT_CLASS = "notification-highlight";
+const HIGHLIGHT_DURATION_MS = 3000;
+// Comments can render slightly after this hook mounts (or the page may still be
+// loading when arriving from a push notification), so retry locating the element
+// for a bounded window instead of giving up immediately.
+const MAX_ATTEMPTS = 20;
+const RETRY_INTERVAL_MS = 300;
 
 /**
- * Hook to handle notification comment highlighting when landing from a push notification.
- * Highlights the comment element and scrolls it into view.
+ * Highlights and scrolls to a comment when the work item is opened from a push
+ * notification. The service worker deep-links with `?commentId=<id>`; we also
+ * accept a `#comment-<id>` hash and the legacy `_highlightComment` param.
  */
 export const useNotificationHighlight = () => {
+  const searchParams = useSearchParams();
+  const commentIdParam = searchParams.get("commentId");
+
   useEffect(() => {
-    // Get comment ID from URL params (set by service worker)
-    const params = new URLSearchParams(window.location.search);
-    const commentIdToHighlight = params.get("_highlightComment");
+    if (typeof window === "undefined") return;
 
-    // Also check URL hash for comment anchor
-    const hashComment = window.location.hash.replace("#comment-", "");
-    const commentId = commentIdToHighlight || hashComment;
+    // Resolve the target comment id from the query param, a comment hash, or the
+    // legacy param (kept for backwards compatibility with older notifications).
+    const hashComment = window.location.hash.startsWith("#comment-")
+      ? window.location.hash.replace("#comment-", "")
+      : "";
+    const legacyParam = new URLSearchParams(window.location.search).get("_highlightComment");
+    const targetId = commentIdParam || hashComment || legacyParam;
+    if (!targetId) return;
 
-    if (!commentId) return;
+    let attempts = 0;
+    let retryTimeout: ReturnType<typeof setTimeout> | undefined;
+    let fadeTimeout: ReturnType<typeof setTimeout> | undefined;
+    let highlightedEl: HTMLElement | null = null;
 
-    // Function to highlight and scroll to comment
-    const highlightComment = () => {
-      // Try multiple selectors as the comment element might be nested differently
-      const selectors = [`#${commentId}`, `[data-comment-id="${commentId}"]`, `[id*="${commentId}"]`];
-
-      let commentElement = null;
+    const findCommentElement = (): HTMLElement | null => {
+      const selectors = [
+        `#comment-${targetId}`, // canonical id rendered on each comment card
+        `[data-comment-id="${targetId}"]`,
+        `#${targetId}`, // legacy/bare id fallback
+      ];
       for (const selector of selectors) {
-        commentElement = document.querySelector(selector);
-        if (commentElement) break;
+        try {
+          const el = document.querySelector<HTMLElement>(selector);
+          if (el) return el;
+        } catch {
+          // invalid selector (e.g. id with unusual chars) — try the next one
+        }
       }
+      return null;
+    };
 
-      if (!commentElement) {
-        console.warn(`[Highlight] Comment element not found for ID: ${commentId}`);
-        // Retry after a delay in case content is still loading
-        setTimeout(highlightComment, 500);
+    // Strip only the comment-related params so a refresh / back navigation does
+    // not re-trigger the highlight, while preserving any other query params.
+    const clearDeepLinkFromUrl = () => {
+      const url = new URL(window.location.href);
+      url.searchParams.delete("commentId");
+      url.searchParams.delete("_highlightComment");
+      url.hash = "";
+      const cleaned = `${url.pathname}${url.search}`;
+      window.history.replaceState(window.history.state, document.title, cleaned);
+    };
+
+    const highlight = () => {
+      const el = findCommentElement();
+      if (!el) {
+        attempts += 1;
+        if (attempts >= MAX_ATTEMPTS) return; // comments never showed up — stop retrying
+        retryTimeout = setTimeout(highlight, RETRY_INTERVAL_MS);
         return;
       }
 
-      // Add highlight animation/styling
-      commentElement.scrollIntoView({
-        behavior: "smooth",
-        block: "center",
-      });
+      el.scrollIntoView({ behavior: "smooth", block: "center" });
 
-      // Add highlight class for visual effect (3 seconds)
-      commentElement.classList.add("notification-highlight");
-      setTimeout(() => {
-        commentElement.classList.remove("notification-highlight");
-      }, 3000);
+      // Restart the CSS fade animation cleanly if the class is somehow present.
+      el.classList.remove(HIGHLIGHT_CLASS);
+      // force reflow so re-adding the class replays the animation
+      void el.offsetWidth;
+      el.classList.add(HIGHLIGHT_CLASS);
+      highlightedEl = el;
 
-      // Flash background color for immediate visual feedback
-      const originalBgColor = window.getComputedStyle(commentElement).backgroundColor;
-      commentElement.style.backgroundColor = "rgba(59, 130, 246, 0.2)"; // Light blue highlight
-      setTimeout(() => {
-        commentElement.style.backgroundColor = originalBgColor;
-      }, 2000);
+      fadeTimeout = setTimeout(() => {
+        el.classList.remove(HIGHLIGHT_CLASS);
+      }, HIGHLIGHT_DURATION_MS);
 
-      console.log(`[Highlight] Highlighted comment: ${commentId}`);
-
-      // Clean up URL params
-      window.history.replaceState({}, document.title, window.location.pathname);
+      clearDeepLinkFromUrl();
     };
 
-    // Wait for DOM to settle and then highlight
-    highlightComment();
-  }, []);
+    highlight();
+
+    return () => {
+      if (retryTimeout) clearTimeout(retryTimeout);
+      if (fadeTimeout) clearTimeout(fadeTimeout);
+      if (highlightedEl) highlightedEl.classList.remove(HIGHLIGHT_CLASS);
+    };
+  }, [commentIdParam]);
 };
