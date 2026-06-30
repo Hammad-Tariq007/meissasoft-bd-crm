@@ -95,8 +95,8 @@ export default {
   email_notifications: "Email notifications",
   stay_in_the_loop_on_issues_you_are_subscribed_to_enable_this_to_get_notified:
     "Stay in the loop on Work items you are subscribed to. Enable this to get notified.",
-  email_notification_setting_updated_successfully: "Email notification setting updated successfully",
-  failed_to_update_email_notification_setting: "Failed to update email notification setting",
+  email_notification_setting_updated_successfully: "Notification setting updated successfully",
+  failed_to_update_email_notification_setting: "Failed to update notification setting",
   notify_me_when: "Notify me when",
   property_changes: "Property changes",
   property_changes_description:
