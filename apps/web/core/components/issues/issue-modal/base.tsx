@@ -75,7 +75,14 @@ export const CreateUpdateIssueModalBase = observer(function CreateUpdateIssueMod
   const { issues: projectIssues } = useIssues(EIssuesStoreType.PROJECT);
   const { issues: draftIssues } = useIssues(EIssuesStoreType.WORKSPACE_DRAFT);
   const { fetchIssue } = useIssueDetail();
-  const { allowedProjectIds, handleCreateUpdatePropertyValues, handleCreateSubWorkItem } = useIssueModal();
+  const {
+    allowedProjectIds,
+    handleCreateUpdatePropertyValues,
+    handleCreateSubWorkItem,
+    handleCreateCustomFieldValues,
+    setCustomFieldValues,
+    setCustomFieldValueErrors,
+  } = useIssueModal();
   const { getProjectByIdentifier } = useProject();
   // current store details
   const { createIssue, updateIssue } = useIssuesActions(storeType);
@@ -153,6 +160,8 @@ export const CreateUpdateIssueModalBase = observer(function CreateUpdateIssueMod
 
     setActiveProjectId(null);
     setChangesMade(null);
+    setCustomFieldValues({});
+    setCustomFieldValueErrors({});
     onClose();
     handleDuplicateIssueModal(false);
   };
@@ -233,18 +242,51 @@ export const CreateUpdateIssueModalBase = observer(function CreateUpdateIssueMod
         });
       }
 
-      setToast({
-        type: TOAST_TYPE.SUCCESS,
-        title: t("success"),
-        message: `${is_draft_issue ? t("draft_created") : t("issue_created_successfully")} `,
-        actionItems: !is_draft_issue && response?.project_id && (
-          <CreateIssueToastActionItems
-            workspaceSlug={workspaceSlug.toString()}
-            projectId={response?.project_id}
-            issueId={response.id}
-          />
-        ),
-      });
+      // Write custom-field values LAST, against the just-created lead id. This never
+      // throws, so a value-write failure leaves the lead intact (no rollback, no dropped
+      // values). Skipped on the draft path for now.
+      let failedCustomFieldNames: string[] = [];
+      if (!is_draft_issue && response.id && response.project_id) {
+        ({ failedFieldNames: failedCustomFieldNames } = await handleCreateCustomFieldValues({
+          issueId: response.id,
+          projectId: response.project_id,
+          workspaceSlug: workspaceSlug.toString(),
+        }));
+      }
+
+      if (failedCustomFieldNames.length > 0) {
+        // the lead WAS created — name the fields that didn't save and point to the panel
+        setToast({
+          type: TOAST_TYPE.WARNING,
+          title: t("success"),
+          message: `Lead created, but these fields couldn't be saved: ${failedCustomFieldNames.join(
+            ", "
+          )}. You can set them from the lead's detail panel.`,
+          actionItems: response?.project_id && (
+            <CreateIssueToastActionItems
+              workspaceSlug={workspaceSlug.toString()}
+              projectId={response?.project_id}
+              issueId={response.id}
+            />
+          ),
+        });
+      } else {
+        setToast({
+          type: TOAST_TYPE.SUCCESS,
+          title: t("success"),
+          message: `${is_draft_issue ? t("draft_created") : t("issue_created_successfully")} `,
+          actionItems: !is_draft_issue && response?.project_id && (
+            <CreateIssueToastActionItems
+              workspaceSlug={workspaceSlug.toString()}
+              projectId={response?.project_id}
+              issueId={response.id}
+            />
+          ),
+        });
+      }
+      // reset custom-field drafts for the next entry ("Create more") / next open
+      setCustomFieldValues({});
+      setCustomFieldValueErrors({});
       if (!createMore) handleClose();
       if (createMore && issueTitleRef) issueTitleRef?.current?.focus();
       setDescription("<p></p>");

@@ -34,6 +34,17 @@ export type TCreateUpdatePropertyValuesProps = {
   isDraft?: boolean;
 };
 
+export type TCustomFieldValuesValidationProps = {
+  projectId: string | null;
+  workspaceSlug: string;
+};
+
+export type TCreateCustomFieldValuesProps = {
+  issueId: string;
+  projectId: string;
+  workspaceSlug: string;
+};
+
 export type TCreateSubWorkItemProps = {
   workspaceSlug: string;
   projectId: string;
@@ -71,6 +82,12 @@ export type TIssueModalContext = {
   setIssuePropertyValues: React.Dispatch<React.SetStateAction<TIssuePropertyValues>>;
   issuePropertyValueErrors: TIssuePropertyValueErrors;
   setIssuePropertyValueErrors: React.Dispatch<React.SetStateAction<TIssuePropertyValueErrors>>;
+  customFieldValues: Record<string, unknown>;
+  setCustomFieldValues: React.Dispatch<React.SetStateAction<Record<string, unknown>>>;
+  customFieldValueErrors: Record<string, boolean>;
+  setCustomFieldValueErrors: React.Dispatch<React.SetStateAction<Record<string, boolean>>>;
+  handleCustomFieldValuesValidation: (props: TCustomFieldValuesValidationProps) => boolean;
+  handleCreateCustomFieldValues: (props: TCreateCustomFieldValuesProps) => Promise<{ failedFieldNames: string[] }>;
   getIssueTypeIdOnProjectChange: (projectId: string) => string | null;
   getActiveAdditionalPropertiesLength: (props: TActiveAdditionalPropertiesProps) => number;
   handlePropertyValuesValidation: (props: TPropertyValuesValidationProps) => boolean;

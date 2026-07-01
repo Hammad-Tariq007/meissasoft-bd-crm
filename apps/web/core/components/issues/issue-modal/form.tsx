@@ -28,6 +28,7 @@ import {
 } from "@plane/utils";
 // components
 import {
+  CreateWorkItemCustomFields,
   IssueDefaultProperties,
   IssueDescriptionEditor,
   IssueParentTag,
@@ -126,6 +127,7 @@ export const IssueFormRoot = observer(function IssueFormRoot(props: IssueFormPro
     getIssueTypeIdOnProjectChange,
     getActiveAdditionalPropertiesLength,
     handlePropertyValuesValidation,
+    handleCustomFieldValuesValidation,
     handleCreateUpdatePropertyValues,
     handleTemplateChange,
   } = useIssueModal();
@@ -236,6 +238,10 @@ export const IssueFormRoot = observer(function IssueFormRoot(props: IssueFormPro
         watch: watch,
       })
     )
+      return;
+
+    // required custom fields — create only (edits manage them from the detail panel)
+    if (!data?.id && !handleCustomFieldValuesValidation({ projectId, workspaceSlug: workspaceSlug?.toString() }))
       return;
 
     const submitData = !data?.id
@@ -485,6 +491,9 @@ export const IssueFormRoot = observer(function IssueFormRoot(props: IssueFormPro
                 projectId={projectId}
                 workspaceSlug={workspaceSlug?.toString()}
               />
+              {!data?.id && (
+                <CreateWorkItemCustomFields projectId={projectId} workspaceSlug={workspaceSlug?.toString()} />
+              )}
             </div>
             <div
               className={cn(
