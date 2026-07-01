@@ -7,11 +7,15 @@
 import { observer } from "mobx-react";
 import { useParams } from "next/navigation";
 import { useForm } from "react-hook-form";
+import useSWR from "swr";
 // plane package imports
 import { useTranslation } from "@plane/i18n";
 import type { IAnalyticsParams } from "@plane/types";
 import { ChartXAxisProperty, ChartYAxisMetric } from "@plane/types";
 import { cn } from "@plane/utils";
+// hooks
+import { useAnalytics } from "@/hooks/store/use-analytics";
+import { useCustomField } from "@/hooks/store/use-custom-field";
 // plane web components
 import AnalyticsSectionWrapper from "../analytics-section-wrapper";
 import { AnalyticsSelectParams } from "../select/analytics-params";
@@ -26,6 +30,8 @@ const CustomizedInsights = observer(function CustomizedInsights({
 }) {
   const { t } = useTranslation();
   const { workspaceSlug } = useParams();
+  const { selectedProjects } = useAnalytics();
+  const { fetchCustomFields, getProjectCustomFields } = useCustomField();
   const { control, watch, setValue } = useForm<IAnalyticsParams>({
     defaultValues: {
       x_axis: ChartXAxisProperty.PRIORITY,
@@ -39,6 +45,19 @@ const CustomizedInsights = observer(function CustomizedInsights({
     group_by: watch("group_by"),
   };
 
+  // Custom fields are project-scoped; offer them as grouping dimensions only when a
+  // single project is in focus, so the option list is unambiguous.
+  const scopedProjectId = selectedProjects.length === 1 ? selectedProjects[0] : undefined;
+  useSWR(
+    scopedProjectId ? ["ANALYTICS_CUSTOM_FIELDS", workspaceSlug.toString(), scopedProjectId] : null,
+    scopedProjectId ? () => fetchCustomFields(workspaceSlug.toString(), scopedProjectId) : null
+  );
+  const customFieldOptions = scopedProjectId
+    ? (getProjectCustomFields(scopedProjectId) ?? [])
+        .filter((field) => field.field_type === "single_select" && field.is_active)
+        .map((field) => ({ value: `CUSTOM_FIELD_${field.id}`, label: field.name }))
+    : [];
+
   return (
     <AnalyticsSectionWrapper
       title={t("workspace_analytics.customized_insights")}
@@ -51,6 +70,7 @@ const CustomizedInsights = observer(function CustomizedInsights({
           params={params}
           workspaceSlug={workspaceSlug.toString()}
           isEpic={isEpic}
+          customFieldOptions={customFieldOptions}
         />
       }
     >

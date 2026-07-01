@@ -89,8 +89,12 @@ export type AnalyticsTableDataMap = {
   "work-items": WorkItemInsightColumns;
 };
 
+// x_axis / group_by are usually a ChartXAxisProperty, but may also be a dynamic
+// custom-field dimension of the form `CUSTOM_FIELD_<uuid>`, hence the string union.
+export type TChartDimension = ChartXAxisProperty | string;
+
 export interface IAnalyticsParams {
-  x_axis: ChartXAxisProperty;
+  x_axis: TChartDimension;
   y_axis: ChartYAxisMetric;
-  group_by?: ChartXAxisProperty;
+  group_by?: TChartDimension;
 }

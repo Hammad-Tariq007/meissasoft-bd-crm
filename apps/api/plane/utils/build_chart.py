@@ -2,19 +2,26 @@
 # SPDX-License-Identifier: AGPL-3.0-only
 # See the LICENSE file for details.
 
-from typing import Dict, Any, Tuple, Optional, List, Union
+import uuid
+from typing import Dict, Any, Tuple, Optional, List, Union, Set
 
 
 # Django imports
 from django.db.models import (
     Count,
     F,
+    FilteredRelation,
+    Q,
     QuerySet,
     Aggregate,
 )
 
 from plane.db.models import Issue
 from rest_framework.exceptions import ValidationError
+
+# x_axis / group_by values of this shape select a single-select custom field as a
+# grouping dimension, e.g. "CUSTOM_FIELD_1b7c…". The suffix is the field's UUID.
+CUSTOM_FIELD_PREFIX = "CUSTOM_FIELD_"
 
 
 x_axis_mapper = {
@@ -150,31 +157,64 @@ def build_simple_chart_response(
     ]
 
 
+def resolve_axis_field(
+    queryset: QuerySet[Issue],
+    axis: str,
+    alias: str,
+    allowed_custom_field_ids: Optional[Set[uuid.UUID]],
+) -> Tuple[QuerySet[Issue], str, str, Optional[Dict[str, Any]]]:
+    """Resolve an x_axis/group_by key to (queryset, id_field, name_field, additional_filter).
+
+    Native keys use the static mapping. A key shaped ``CUSTOM_FIELD_<uuid>`` selects
+    a single-select custom field: we LEFT JOIN (FilteredRelation) onto just that
+    field's value under ``alias`` so issues with no value fall into a "None" bucket
+    and two custom dimensions never collide on the shared custom_field_values join.
+    The returned field paths reference the alias; no queryset filter is needed for
+    custom fields (the field scoping lives inside the FilteredRelation condition).
+    """
+    field_mapping = get_x_axis_field()
+    if axis in field_mapping:
+        id_field, name_field, additional_filter = field_mapping[axis]
+        return queryset, id_field, name_field, additional_filter
+
+    if isinstance(axis, str) and axis.startswith(CUSTOM_FIELD_PREFIX):
+        raw_id = axis[len(CUSTOM_FIELD_PREFIX) :]
+        try:
+            field_id = uuid.UUID(raw_id)
+        except ValueError:
+            raise ValidationError(f"Invalid custom field dimension: {axis}")
+        if not allowed_custom_field_ids or field_id not in allowed_custom_field_ids:
+            raise ValidationError(f"'{axis}' is not a groupable single-select custom field")
+        queryset = queryset.annotate(
+            **{alias: FilteredRelation("custom_field_values", condition=Q(custom_field_values__field_id=field_id))}
+        )
+        return queryset, f"{alias}__value_option_id", f"{alias}__value_option__name", None
+
+    raise ValidationError(f"Invalid dimension: {axis}")
+
+
 def build_analytics_chart(
     queryset: QuerySet[Issue],
     x_axis: str,
     group_by: Optional[str] = None,
     date_filter: Optional[str] = None,
+    allowed_custom_field_ids: Optional[Set[uuid.UUID]] = None,
 ) -> Dict[str, Union[List[Dict[str, Any]], Dict[str, str]]]:
-    # Validate x_axis
-    if x_axis not in x_axis_mapper:
-        raise ValidationError(f"Invalid x_axis field: {x_axis}")
+    queryset, id_field, name_field, additional_filter = resolve_axis_field(
+        queryset, x_axis, "cf_x_axis", allowed_custom_field_ids
+    )
 
-    # Validate group_by
-    if group_by and group_by not in x_axis_mapper:
-        raise ValidationError(f"Invalid group_by field: {group_by}")
+    group_field = group_name_field = None
+    if group_by:
+        queryset, group_field, group_name_field, group_additional_filter = resolve_axis_field(
+            queryset, group_by, "cf_group_by", allowed_custom_field_ids
+        )
+        if group_additional_filter:
+            queryset = queryset.filter(**group_additional_filter)
 
-    field_mapping = get_x_axis_field()
-
-    id_field, name_field, additional_filter = field_mapping.get(x_axis, (None, None, {}))
-    group_field, group_name_field, group_additional_filter = field_mapping.get(group_by, (None, None, {}))
-
-    # Apply additional filters if they exist
-    if additional_filter or {}:
+    # Apply the x_axis additional filter (native relations only) if present.
+    if additional_filter:
         queryset = queryset.filter(**additional_filter)
-
-    if group_additional_filter or {}:
-        queryset = queryset.filter(**group_additional_filter)
 
     aggregate_func = Count("id", distinct=True)
 

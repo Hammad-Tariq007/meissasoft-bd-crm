@@ -5,14 +5,19 @@
  */
 
 // plane package imports
-import type { ChartYAxisMetric, IState } from "@plane/types";
+import type { ChartYAxisMetric, IState, TChartDimension } from "@plane/types";
 import { ChartXAxisProperty } from "@plane/types";
 
 interface ParamsProps {
-  x_axis: ChartXAxisProperty;
+  x_axis: TChartDimension;
   y_axis: ChartYAxisMetric;
-  group_by?: ChartXAxisProperty;
+  group_by?: TChartDimension;
 }
+
+const colorFromValue = (value: string, baseColors: string[]): string => {
+  const index = Math.abs(value.split("").reduce((acc, char) => acc + char.charCodeAt(0), 0)) % baseColors.length;
+  return baseColors[index];
+};
 
 export const generateBarColor = (
   value: string | null | undefined,
@@ -43,10 +48,14 @@ export const generateBarColor = (
       if (state) {
         color = state.color;
       } else {
-        const index = Math.abs(value.split("").reduce((acc, char) => acc + char.charCodeAt(0), 0)) % baseColors.length;
-        color = baseColors[index];
+        color = colorFromValue(value, baseColors);
       }
     }
+  }
+
+  // Custom-field dimension: spread colors deterministically across option values.
+  if (typeof params.x_axis === "string" && params.x_axis.startsWith("CUSTOM_FIELD_")) {
+    color = colorFromValue(value, baseColors);
   }
 
   return color;

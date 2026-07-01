@@ -19,7 +19,9 @@ from plane.db.models import (
     Module,
     CycleIssue,
     ModuleIssue,
+    CustomFieldDefinition,
 )
+from plane.db.models.custom_field import CustomFieldType
 from django.db import models
 from django.db.models import F, Case, When, Value
 from django.db.models.functions import Concat
@@ -349,8 +351,19 @@ class ProjectAdvanceAnalyticsChartEndpoint(ProjectAdvanceAnalyticsBaseView):
                 start_date, end_date = self.filters["chart_period_range"]
                 queryset = queryset.filter(created_at__date__gte=start_date, created_at__date__lte=end_date)
 
+            # Single-select custom fields on this project are groupable dimensions.
+            allowed_custom_field_ids = set(
+                CustomFieldDefinition.objects.filter(
+                    project_id=project_id,
+                    field_type=CustomFieldType.SINGLE_SELECT,
+                    is_active=True,
+                ).values_list("id", flat=True)
+            )
+
             return Response(
-                build_analytics_chart(queryset, x_axis, group_by),
+                build_analytics_chart(
+                    queryset, x_axis, group_by, allowed_custom_field_ids=allowed_custom_field_ids
+                ),
                 status=status.HTTP_200_OK,
             )
 
