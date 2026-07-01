@@ -54,7 +54,10 @@ export type TIssueOrderByOptions =
   | "attachment_count"
   | "-attachment_count"
   | "sub_issues_count"
-  | "-sub_issues_count";
+  | "-sub_issues_count"
+  // Custom field ordering: `custom_field__<fieldId>` (asc) / `-custom_field__<fieldId>` (desc)
+  | `custom_field__${string}`
+  | `-custom_field__${string}`;
 
 export type TIssueGroupingFilters = "active" | "backlog";
 

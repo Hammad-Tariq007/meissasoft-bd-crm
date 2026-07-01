@@ -8,6 +8,7 @@ from plane.app.views import (
     CustomFieldDefinitionViewSet,
     CustomFieldOptionViewSet,
     CustomFieldValueViewSet,
+    ProjectCustomFieldValuesEndpoint,
 )
 
 urlpatterns = [
@@ -39,6 +40,12 @@ urlpatterns = [
         "workspaces/<str:slug>/projects/<uuid:project_id>/custom-fields/<uuid:field_id>/options/<uuid:pk>/",
         CustomFieldOptionViewSet.as_view({"patch": "partial_update", "delete": "destroy"}),
         name="custom-field-option",
+    ),
+    # Bulk read of values across many work items (spreadsheet view)
+    path(
+        "workspaces/<str:slug>/projects/<uuid:project_id>/custom-field-values/",
+        ProjectCustomFieldValuesEndpoint.as_view(),
+        name="project-custom-field-values",
     ),
     # Values for a given work item
     path(

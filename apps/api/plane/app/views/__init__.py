@@ -88,6 +88,7 @@ from .custom_field.base import (
     CustomFieldDefinitionViewSet,
     CustomFieldOptionViewSet,
     CustomFieldValueViewSet,
+    ProjectCustomFieldValuesEndpoint,
 )
 from .view.base import (
     WorkspaceViewViewSet,

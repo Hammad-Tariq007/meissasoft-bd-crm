@@ -123,6 +123,21 @@ export class CustomFieldService extends APIService {
       });
   }
 
+  // Bulk read for a page of work items (spreadsheet view) — one request, one query.
+  async getCustomFieldValuesBulk(
+    workspaceSlug: string,
+    projectId: string,
+    issueIds: string[]
+  ): Promise<ICustomFieldValue[]> {
+    return this.get(`/api/workspaces/${workspaceSlug}/projects/${projectId}/custom-field-values/`, {
+      params: { issue_ids: issueIds.join(",") },
+    })
+      .then((response) => response?.data)
+      .catch((error) => {
+        throw error?.response?.data;
+      });
+  }
+
   async setCustomFieldValue(
     workspaceSlug: string,
     projectId: string,

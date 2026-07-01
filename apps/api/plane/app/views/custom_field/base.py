@@ -11,7 +11,7 @@ from rest_framework import status
 from rest_framework.response import Response
 
 # Module imports
-from .. import BaseViewSet
+from .. import BaseAPIView, BaseViewSet
 from plane.app.permissions import ROLE, allow_permission
 from plane.app.serializers import (
     CustomFieldDefinitionSerializer,
@@ -345,3 +345,32 @@ class CustomFieldValueViewSet(BaseViewSet):
             obj.value_options.clear()  # drop M2M rows before soft-deleting the value
             obj.delete()
         return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+class ProjectCustomFieldValuesEndpoint(BaseAPIView):
+    """Bulk read of custom field values for many work items in one query.
+
+    Powers the spreadsheet view: one request/one query per page of issues
+    instead of one per row. Read-only; any project member. Pass a comma
+    separated ``issue_ids`` query param to scope to the visible page.
+    """
+
+    @allow_permission([ROLE.ADMIN, ROLE.MEMBER, ROLE.GUEST])
+    def get(self, request, slug, project_id):
+        queryset = (
+            CustomFieldValue.objects.filter(
+                workspace__slug=slug,
+                project_id=project_id,
+                project__project_projectmember__member=request.user,
+                project__project_projectmember__is_active=True,
+            )
+            .select_related("field", "value_option", "value_member")
+            .prefetch_related("value_options")
+        )
+        issue_ids = request.query_params.get("issue_ids")
+        if issue_ids:
+            queryset = queryset.filter(issue_id__in=[i for i in issue_ids.split(",") if i])
+        return Response(
+            CustomFieldValueSerializer(queryset.distinct(), many=True).data,
+            status=status.HTTP_200_OK,
+        )

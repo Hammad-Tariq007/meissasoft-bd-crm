@@ -2,7 +2,7 @@
 # SPDX-License-Identifier: AGPL-3.0-only
 # See the LICENSE file for details.
 
-from django.db.models import Case, CharField, Min, Value, When
+from django.db.models import Case, CharField, Min, OuterRef, Subquery, Value, When
 
 # Custom ordering for priority and state
 PRIORITY_ORDER = ["urgent", "high", "medium", "low", "none"]
@@ -46,6 +46,30 @@ def order_issue_queryset(issue_queryset, order_by_param="-created_at"):
             "-created_at",
         )
         order_by_param = "-min_values" if order_by_param.startswith("-") else "min_values"
+    # Custom field ordering: order_by = custom_field__<field_id> (or -custom_field__<field_id>)
+    elif order_by_param.lstrip("-").startswith("custom_field__"):
+        from plane.db.models import CustomFieldDefinition, CustomFieldValue
+        from plane.db.models.custom_field import CustomFieldType
+
+        field_id = order_by_param.lstrip("-")[len("custom_field__") :]
+        field = CustomFieldDefinition.objects.filter(pk=field_id).first()
+        # Sort by the typed column that backs this field; single_select sorts by
+        # the chosen option's name. Text-backed types (text/long_text/url) and
+        # unknown/invalid ids fall back to value_text.
+        value_column = {
+            CustomFieldType.NUMBER: "value_number",
+            CustomFieldType.DATE: "value_date",
+            CustomFieldType.SINGLE_SELECT: "value_option__name",
+        }.get(field.field_type if field else None, "value_text")
+        issue_queryset = issue_queryset.annotate(
+            custom_field_order=Subquery(
+                CustomFieldValue.objects.filter(issue=OuterRef("id"), field_id=field_id).values(value_column)[:1]
+            )
+        ).order_by(
+            "-custom_field_order" if order_by_param.startswith("-") else "custom_field_order",
+            "-created_at",
+        )
+        order_by_param = "-custom_field_order" if order_by_param.startswith("-") else "custom_field_order"
     else:
         # If the order_by_param is created_at, then don't add the -created_at
         if "created_at" in order_by_param:

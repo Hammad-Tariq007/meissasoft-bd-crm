@@ -6,12 +6,15 @@
 
 import React from "react";
 import { observer } from "mobx-react";
+import { useParams } from "next/navigation";
 // plane constants
 import { ISSUE_DISPLAY_PROPERTIES } from "@plane/constants";
 // plane i18n
 import { useTranslation } from "@plane/i18n";
 // types
 import type { IIssueDisplayProperties } from "@plane/types";
+// hooks
+import { useSpreadsheetCustomFieldColumns } from "@/hooks/use-spreadsheet-custom-field-columns";
 // components
 import { FilterHeader } from "../helpers/filter-header";
 
@@ -65,29 +68,66 @@ export const FilterDisplayProperties = observer(function FilterDisplayProperties
         handleIsPreviewEnabled={() => setPreviewEnabled(!previewEnabled)}
       />
       {previewEnabled && (
-        <div className="mt-1 flex flex-wrap items-center gap-2">
-          {filteredDisplayProperties.map((displayProperty) => (
-            <>
-              <button
-                key={displayProperty.key}
-                type="button"
-                className={`rounded-sm border px-2 py-0.5 text-11 transition-all ${
-                  displayProperties?.[displayProperty.key]
-                    ? "border-accent-strong bg-accent-primary text-on-color"
-                    : "border-subtle hover:bg-layer-1"
-                }`}
-                onClick={() =>
-                  handleUpdate({
-                    [displayProperty.key]: !displayProperties?.[displayProperty.key],
-                  })
-                }
-              >
-                {t(displayProperty.titleTranslationKey)}
-              </button>
-            </>
-          ))}
-        </div>
+        <>
+          <div className="mt-1 flex flex-wrap items-center gap-2">
+            {filteredDisplayProperties.map((displayProperty) => (
+              <>
+                <button
+                  key={displayProperty.key}
+                  type="button"
+                  className={`rounded-sm border px-2 py-0.5 text-11 transition-all ${
+                    displayProperties?.[displayProperty.key]
+                      ? "border-accent-strong bg-accent-primary text-on-color"
+                      : "border-subtle hover:bg-layer-1"
+                  }`}
+                  onClick={() =>
+                    handleUpdate({
+                      [displayProperty.key]: !displayProperties?.[displayProperty.key],
+                    })
+                  }
+                >
+                  {t(displayProperty.titleTranslationKey)}
+                </button>
+              </>
+            ))}
+          </div>
+          <CustomFieldDisplayProperties />
+        </>
       )}
     </>
+  );
+});
+
+/**
+ * Show/hide toggles for the project's custom-field spreadsheet columns.
+ * Visibility is per-browser (localStorage); rendered only in a project context.
+ */
+const CustomFieldDisplayProperties = observer(function CustomFieldDisplayProperties() {
+  const { projectId } = useParams();
+  const { t } = useTranslation();
+  const { fields, isVisible, toggle } = useSpreadsheetCustomFieldColumns(projectId?.toString());
+
+  if (!projectId || fields.length === 0) return null;
+
+  return (
+    <div className="mt-3">
+      <p className="mb-1 text-11 font-medium text-tertiary">{t("issue.display.properties.label")}</p>
+      <div className="flex flex-wrap items-center gap-2">
+        {fields.map((field) => (
+          <button
+            key={field.id}
+            type="button"
+            className={`rounded-sm border px-2 py-0.5 text-11 transition-all ${
+              isVisible(field.id)
+                ? "border-accent-strong bg-accent-primary text-on-color"
+                : "border-subtle hover:bg-layer-1"
+            }`}
+            onClick={() => toggle(field.id)}
+          >
+            {field.name}
+          </button>
+        ))}
+      </div>
+    </div>
   );
 });

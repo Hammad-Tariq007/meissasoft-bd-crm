@@ -31,6 +31,11 @@ export interface ICustomFieldStore {
   fetchCustomFields: (workspaceSlug: string, projectId: string) => Promise<ICustomField[]>;
   // value actions
   fetchCustomFieldValues: (workspaceSlug: string, projectId: string, issueId: string) => Promise<ICustomFieldValue[]>;
+  fetchCustomFieldValuesBulk: (
+    workspaceSlug: string,
+    projectId: string,
+    issueIds: string[]
+  ) => Promise<ICustomFieldValue[]>;
   setCustomFieldValue: (
     workspaceSlug: string,
     projectId: string,
@@ -90,6 +95,7 @@ export class CustomFieldStore implements ICustomFieldStore {
       deleteOption: action,
       reorderOptions: action,
       fetchCustomFieldValues: action,
+      fetchCustomFieldValuesBulk: action,
       setCustomFieldValue: action,
       clearCustomFieldValue: action,
     });
@@ -217,6 +223,23 @@ export class CustomFieldStore implements ICustomFieldStore {
       });
       return response;
     });
+
+  // Bulk-load values for a page of issues (spreadsheet). Indexes into valueMap
+  // by issue so per-row reads via getCustomFieldValue are cheap and reactive.
+  fetchCustomFieldValuesBulk = async (workspaceSlug: string, projectId: string, issueIds: string[]) => {
+    if (issueIds.length === 0) return [];
+    const response = await this.customFieldService.getCustomFieldValuesBulk(workspaceSlug, projectId, issueIds);
+    runInAction(() => {
+      const byIssue: Record<string, Record<string, ICustomFieldValue>> = {};
+      response.forEach((value) => {
+        (byIssue[value.issue] ??= {})[value.field] = value;
+      });
+      // Set an entry for every requested issue so those with no values are
+      // marked loaded (empty) rather than left undefined.
+      issueIds.forEach((issueId) => set(this.valueMap, [issueId], byIssue[issueId] ?? {}));
+    });
+    return response;
+  };
 
   setCustomFieldValue = async (
     workspaceSlug: string,

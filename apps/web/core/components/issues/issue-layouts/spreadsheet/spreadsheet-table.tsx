@@ -7,11 +7,13 @@
 import type { MutableRefObject } from "react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { observer } from "mobx-react";
+import { useParams } from "next/navigation";
 // plane imports
 import type { IIssueDisplayFilterOptions, IIssueDisplayProperties, TIssue } from "@plane/types";
 // components
 import { SpreadsheetIssueRowLoader } from "@/components/ui/loader/layouts/spreadsheet-layout-loader";
 // hooks
+import { useCustomField } from "@/hooks/store/use-custom-field";
 import { useIntersectionObserver } from "@/hooks/use-intersection-observer";
 import { useIssuesStore } from "@/hooks/use-issue-layout-store";
 import type { TSelectionHelper } from "@/hooks/use-multiple-select";
@@ -66,6 +68,21 @@ export const SpreadsheetTable = observer(function SpreadsheetTable(props: Props)
   const {
     issues: { getIssueLoader },
   } = useIssuesStore();
+
+  // router + custom field values
+  const { workspaceSlug, projectId } = useParams();
+  const { fetchCustomFieldValuesBulk } = useCustomField();
+
+  // Bulk-load custom field values for the visible page of issues in one request
+  // (avoids one request per row). Re-runs as the page of issue ids changes.
+  const issueIdsKey = issueIds.join(",");
+  useEffect(() => {
+    const ws = workspaceSlug?.toString();
+    const pid = projectId?.toString();
+    if (!ws || !pid || issueIds.length === 0) return;
+    fetchCustomFieldValuesBulk(ws, pid, issueIds);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [workspaceSlug, projectId, issueIdsKey]);
 
   const handleScroll = useCallback(() => {
     if (!containerRef.current) return;
