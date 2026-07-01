@@ -25,9 +25,11 @@ import {
   PROJECT_MODULES,
   PROJECT_VIEWS,
   PROJECT_INTAKE_STATE,
+  PROJECT_CUSTOM_FIELDS,
 } from "@/constants/fetch-keys";
 // hooks
 import { useProjectEstimates } from "@/hooks/store/estimates";
+import { useCustomField } from "@/hooks/store/use-custom-field";
 import { useCycle } from "@/hooks/store/use-cycle";
 import { useLabel } from "@/hooks/store/use-label";
 import { useMember } from "@/hooks/store/use-member";
@@ -63,6 +65,7 @@ export const ProjectAuthWrapper = observer(function ProjectAuthWrapper(props: IP
   const { fetchProjectStates, fetchProjectIntakeState } = useProjectState();
   const { data: currentUserData } = useUser();
   const { fetchProjectLabels } = useLabel();
+  const { fetchCustomFields } = useCustomField();
   const { getProjectEstimates } = useProjectEstimates();
   // derived values
   const hasPermissionToCurrentProject = allowPermissions(
@@ -104,6 +107,11 @@ export const ProjectAuthWrapper = observer(function ProjectAuthWrapper(props: IP
   });
   // fetching project states
   useSWR(PROJECT_STATES(projectId, currentProjectRole), () => fetchProjectStates(workspaceSlug, projectId), {
+    revalidateIfStale: false,
+    revalidateOnFocus: false,
+  });
+  // fetching project custom field definitions
+  useSWR(PROJECT_CUSTOM_FIELDS(projectId, currentProjectRole), () => fetchCustomFields(workspaceSlug, projectId), {
     revalidateIfStale: false,
     revalidateOnFocus: false,
   });

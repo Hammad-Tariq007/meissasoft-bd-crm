@@ -10,3 +10,5 @@ export * from "./create-update-field-inline";
 export * from "./delete-field-modal";
 export * from "./options/option-list";
 export * from "./options/create-update-option-inline";
+export * from "./work-item/root";
+export * from "./work-item/field-control";

@@ -14,6 +14,8 @@ import { NotAuthorizedView } from "@/components/auth-screens/not-authorized-view
 import { PageHead } from "@/components/core/page-title";
 import { CustomFieldList } from "@/components/custom-fields";
 import { SettingsContentWrapper } from "@/components/settings/content-wrapper";
+// constants
+import { PROJECT_CUSTOM_FIELDS } from "@/constants/fetch-keys";
 // hooks
 import { useCustomField } from "@/hooks/store/use-custom-field";
 import { useProject } from "@/hooks/store/use-project";
@@ -26,18 +28,20 @@ function CustomFieldsSettingsPage() {
   const { workspaceSlug, projectId } = useParams();
   // store hooks
   const { currentProjectDetails } = useProject();
-  const { workspaceUserInfo, allowPermissions } = useUserPermissions();
+  const { workspaceUserInfo, allowPermissions, getProjectRoleByWorkspaceSlugAndProjectId } = useUserPermissions();
   const { fetchCustomFields } = useCustomField();
 
   const ws = workspaceSlug?.toString();
   const pid = projectId?.toString();
+  const currentProjectRole = ws && pid ? getProjectRoleByWorkspaceSlugAndProjectId(ws, pid) : undefined;
 
-  // Page-level fetch for now; the store action is generic and can be promoted to
-  // project-wrapper later when the work-item panel needs it globally.
-  useSWR(ws && pid ? `PROJECT_CUSTOM_FIELDS_${pid}` : null, ws && pid ? () => fetchCustomFields(ws, pid) : null, {
-    revalidateIfStale: false,
-    revalidateOnFocus: false,
-  });
+  // Definitions are fetched at the project-wrapper level; this shares that SWR
+  // cache key so the settings page stays in sync without a duplicate request.
+  useSWR(
+    ws && pid ? PROJECT_CUSTOM_FIELDS(pid, currentProjectRole) : null,
+    ws && pid ? () => fetchCustomFields(ws, pid) : null,
+    { revalidateIfStale: false, revalidateOnFocus: false }
+  );
 
   const pageTitle = currentProjectDetails?.name ? `${currentProjectDetails.name} - Custom fields` : undefined;
 

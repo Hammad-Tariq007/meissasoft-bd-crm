@@ -10,7 +10,7 @@ import { computedFn } from "mobx-utils";
 // services
 import { CustomFieldService } from "@/services/custom-field.service";
 // types
-import type { ICustomField, ICustomFieldOption } from "@/types/custom-field";
+import type { ICustomField, ICustomFieldOption, ICustomFieldValue } from "@/types/custom-field";
 // store
 import type { CoreRootStore } from "./root.store";
 
@@ -19,13 +19,26 @@ export interface ICustomFieldStore {
   fetchedMap: Record<string, boolean>;
   // observables
   fieldMap: Record<string, ICustomField>;
+  // per-issue values: issueId -> fieldId -> value
+  valueMap: Record<string, Record<string, ICustomFieldValue>>;
   // computed
   projectCustomFields: ICustomField[] | undefined;
   // computed actions
   getProjectCustomFields: (projectId: string | undefined | null) => ICustomField[] | undefined;
   getCustomFieldById: (fieldId: string) => ICustomField | null;
+  getCustomFieldValue: (issueId: string, fieldId: string) => ICustomFieldValue | undefined;
   // fetch actions
   fetchCustomFields: (workspaceSlug: string, projectId: string) => Promise<ICustomField[]>;
+  // value actions
+  fetchCustomFieldValues: (workspaceSlug: string, projectId: string, issueId: string) => Promise<ICustomFieldValue[]>;
+  setCustomFieldValue: (
+    workspaceSlug: string,
+    projectId: string,
+    issueId: string,
+    fieldId: string,
+    value: unknown
+  ) => Promise<ICustomFieldValue>;
+  clearCustomFieldValue: (workspaceSlug: string, projectId: string, issueId: string, fieldId: string) => Promise<void>;
   // field crud
   createCustomField: (workspaceSlug: string, projectId: string, data: Partial<ICustomField>) => Promise<ICustomField>;
   updateCustomField: (
@@ -56,6 +69,7 @@ export interface ICustomFieldStore {
 export class CustomFieldStore implements ICustomFieldStore {
   // observables
   fieldMap: Record<string, ICustomField> = {};
+  valueMap: Record<string, Record<string, ICustomFieldValue>> = {};
   fetchedMap: Record<string, boolean> = {};
   // root + services
   rootStore;
@@ -64,6 +78,7 @@ export class CustomFieldStore implements ICustomFieldStore {
   constructor(_rootStore: CoreRootStore) {
     makeObservable(this, {
       fieldMap: observable,
+      valueMap: observable,
       fetchedMap: observable,
       projectCustomFields: computed,
       fetchCustomFields: action,
@@ -74,6 +89,9 @@ export class CustomFieldStore implements ICustomFieldStore {
       updateOption: action,
       deleteOption: action,
       reorderOptions: action,
+      fetchCustomFieldValues: action,
+      setCustomFieldValue: action,
+      clearCustomFieldValue: action,
     });
     this.rootStore = _rootStore;
     this.customFieldService = new CustomFieldService();
@@ -98,6 +116,10 @@ export class CustomFieldStore implements ICustomFieldStore {
   });
 
   getCustomFieldById = computedFn((fieldId: string): ICustomField | null => this.fieldMap?.[fieldId] || null);
+
+  getCustomFieldValue = computedFn(
+    (issueId: string, fieldId: string): ICustomFieldValue | undefined => this.valueMap?.[issueId]?.[fieldId]
+  );
 
   fetchCustomFields = async (workspaceSlug: string, projectId: string) =>
     await this.customFieldService.getCustomFields(workspaceSlug, projectId).then((response) => {
@@ -183,5 +205,56 @@ export class CustomFieldStore implements ICustomFieldStore {
   reorderOptions = async (workspaceSlug: string, projectId: string, fieldId: string, optionIds: string[]) => {
     const response = await this.customFieldService.reorderOptions(workspaceSlug, projectId, fieldId, optionIds);
     this.setOptions(fieldId, response);
+  };
+
+  // ---- work item values ----
+  fetchCustomFieldValues = async (workspaceSlug: string, projectId: string, issueId: string) =>
+    await this.customFieldService.getCustomFieldValues(workspaceSlug, projectId, issueId).then((response) => {
+      runInAction(() => {
+        const byField: Record<string, ICustomFieldValue> = {};
+        response.forEach((value) => (byField[value.field] = value));
+        set(this.valueMap, [issueId], byField);
+      });
+      return response;
+    });
+
+  setCustomFieldValue = async (
+    workspaceSlug: string,
+    projectId: string,
+    issueId: string,
+    fieldId: string,
+    value: unknown
+  ) => {
+    const original = this.valueMap?.[issueId]?.[fieldId];
+    try {
+      // optimistic: stamp the new value onto the existing (or a shell) row
+      runInAction(() =>
+        set(this.valueMap, [issueId, fieldId], { ...(original ?? { field: fieldId, issue: issueId }), value })
+      );
+      const response = await this.customFieldService.setCustomFieldValue(workspaceSlug, projectId, issueId, {
+        field: fieldId,
+        value,
+      });
+      runInAction(() => set(this.valueMap, [issueId, fieldId], response));
+      return response;
+    } catch (error) {
+      runInAction(() => {
+        if (original) set(this.valueMap, [issueId, fieldId], original);
+        else if (this.valueMap?.[issueId]) delete this.valueMap[issueId][fieldId];
+      });
+      throw error;
+    }
+  };
+
+  clearCustomFieldValue = async (workspaceSlug: string, projectId: string, issueId: string, fieldId: string) => {
+    const original = this.valueMap?.[issueId]?.[fieldId];
+    if (!original) return;
+    try {
+      runInAction(() => delete this.valueMap[issueId][fieldId]);
+      await this.customFieldService.clearCustomFieldValue(workspaceSlug, projectId, issueId, fieldId);
+    } catch (error) {
+      runInAction(() => set(this.valueMap, [issueId, fieldId], original));
+      throw error;
+    }
   };
 }

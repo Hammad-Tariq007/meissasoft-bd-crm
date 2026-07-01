@@ -8,7 +8,7 @@ import { API_BASE_URL } from "@plane/constants";
 // services
 import { APIService } from "@/services/api.service";
 // types
-import type { ICustomField, ICustomFieldOption } from "@/types/custom-field";
+import type { ICustomField, ICustomFieldOption, ICustomFieldValue } from "@/types/custom-field";
 
 export class CustomFieldService extends APIService {
   constructor() {
@@ -107,6 +107,46 @@ export class CustomFieldService extends APIService {
     return this.post(
       `/api/workspaces/${workspaceSlug}/projects/${projectId}/custom-fields/${fieldId}/options/reorder/`,
       { options: optionIds }
+    )
+      .then((response) => response?.data)
+      .catch((error) => {
+        throw error?.response?.data;
+      });
+  }
+
+  // ---- work item values ----
+  async getCustomFieldValues(workspaceSlug: string, projectId: string, issueId: string): Promise<ICustomFieldValue[]> {
+    return this.get(`/api/workspaces/${workspaceSlug}/projects/${projectId}/issues/${issueId}/custom-field-values/`)
+      .then((response) => response?.data)
+      .catch((error) => {
+        throw error?.response?.data;
+      });
+  }
+
+  async setCustomFieldValue(
+    workspaceSlug: string,
+    projectId: string,
+    issueId: string,
+    data: { field: string; value: unknown }
+  ): Promise<ICustomFieldValue> {
+    return this.post(
+      `/api/workspaces/${workspaceSlug}/projects/${projectId}/issues/${issueId}/custom-field-values/`,
+      data
+    )
+      .then((response) => response?.data)
+      .catch((error) => {
+        throw error?.response?.data;
+      });
+  }
+
+  async clearCustomFieldValue(
+    workspaceSlug: string,
+    projectId: string,
+    issueId: string,
+    fieldId: string
+  ): Promise<void> {
+    return this.delete(
+      `/api/workspaces/${workspaceSlug}/projects/${projectId}/issues/${issueId}/custom-field-values/${fieldId}/`
     )
       .then((response) => response?.data)
       .catch((error) => {

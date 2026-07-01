@@ -60,3 +60,21 @@ export interface ICustomField {
   settings: Record<string, unknown>;
   options: ICustomFieldOption[];
 }
+
+export interface ICustomFieldValue {
+  id: string;
+  field: string; // field definition id
+  field_type: TCustomFieldType;
+  issue: string;
+  project_id: string;
+  workspace_id: string;
+  // Canonical value for the field's type:
+  //  text/long_text/url -> string | null
+  //  number             -> number | null
+  //  date               -> string (YYYY-MM-DD) | null
+  //  checkbox           -> boolean | null
+  //  single_select      -> option id | null
+  //  multi_select       -> option id[]
+  //  member             -> member (user) id | null
+  value: string | number | boolean | string[] | null;
+}
