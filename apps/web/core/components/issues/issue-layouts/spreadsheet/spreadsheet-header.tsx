@@ -72,7 +72,7 @@ export const SpreadsheetHeader = observer(function SpreadsheetHeader(props: Prop
                   />
                 </div>
               )}
-              <span className="text-13 font-medium">{`${isEpic ? "Epics" : "Work items"}`}</span>
+              <span className="text-13 font-medium">{`${isEpic ? "Epics" : "Leads"}`}</span>
             </div>
           </div>
         </th>

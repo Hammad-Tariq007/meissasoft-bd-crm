@@ -94,19 +94,19 @@ export default {
   failed_to_update_the_theme: "Failed to update the theme",
   email_notifications: "Email notifications",
   stay_in_the_loop_on_issues_you_are_subscribed_to_enable_this_to_get_notified:
-    "Stay in the loop on Work items you are subscribed to. Enable this to get notified.",
+    "Stay in the loop on Leads you are subscribed to. Enable this to get notified.",
   email_notification_setting_updated_successfully: "Notification setting updated successfully",
   failed_to_update_email_notification_setting: "Failed to update notification setting",
   notify_me_when: "Notify me when",
   property_changes: "Property changes",
   property_changes_description:
-    "Notify me when work items' properties like assignees, priority, estimates or anything else changes.",
+    "Notify me when leads' properties like assignees, priority, estimates or anything else changes.",
   state_change: "State change",
-  state_change_description: "Notify me when the work items moves to a different state",
-  issue_completed: "Work item completed",
-  issue_completed_description: "Notify me only when a work item is completed",
+  state_change_description: "Notify me when the leads moves to a different state",
+  issue_completed: "Lead completed",
+  issue_completed_description: "Notify me only when a lead is completed",
   comments: "Comments",
-  comments_description: "Notify me when someone leaves a comment on the work item",
+  comments_description: "Notify me when someone leaves a comment on the lead",
   mentions: "Mentions",
   mentions_description: "Notify me only when someone mentions me in the comments or description",
   old_password: "Old password",
@@ -115,7 +115,7 @@ export default {
   signing_out: "Signing out",
   active_cycles: "Active cycles",
   active_cycles_description:
-    "Monitor cycles across projects, track high-priority work items, and zoom in cycles that need attention.",
+    "Monitor cycles across projects, track high-priority leads, and zoom in cycles that need attention.",
   on_demand_snapshots_of_all_your_cycles: "On-demand snapshots of all your cycles",
   upgrade: "Upgrade",
   "10000_feet_view": "10,000-feet view of all active cycles.",
@@ -127,9 +127,9 @@ export default {
   compare_burndowns: "Compare burndowns.",
   compare_burndowns_description:
     "Monitor how each of your teams are performing with a peek into each cycle's burndown report.",
-  quickly_see_make_or_break_issues: "Quickly see make-or-break work items.",
+  quickly_see_make_or_break_issues: "Quickly see make-or-break leads.",
   quickly_see_make_or_break_issues_description:
-    "Preview high-priority work items for each cycle against due dates. See all of them per cycle in one click.",
+    "Preview high-priority leads for each cycle against due dates. See all of them per cycle in one click.",
   zoom_into_cycles_that_need_attention: "Zoom into cycles that need attention.",
   zoom_into_cycles_that_need_attention_description:
     "Investigate the state of any cycle that doesn't conform to expectations in one click.",
@@ -140,7 +140,7 @@ export default {
   workspace_invites: "Workspace invites",
   enter_god_mode: "Enter god mode",
   workspace_logo: "Workspace logo",
-  new_issue: "New work item",
+  new_issue: "New Lead",
   your_work: "Your work",
   drafts: "Drafts",
   projects: "Projects",
@@ -168,7 +168,7 @@ export default {
   create_project: "Create project",
   failed_to_remove_project_from_favorites: "Couldn't remove the project from favorites. Please try again.",
   project_created_successfully: "Project created successfully",
-  project_created_successfully_description: "Project created successfully. You can now start adding work items to it.",
+  project_created_successfully_description: "Project created successfully. You can now start adding leads to it.",
   project_name_already_taken: "The project name is already taken.",
   project_identifier_already_taken: "The project identifier is already taken.",
   project_cover_image_alt: "Project cover image",
@@ -178,7 +178,7 @@ export default {
   project_id_must_be_at_least_1_character: "Project ID must at least be of 1 character",
   project_id_must_be_at_most_5_characters: "Project ID must at most be of 5 characters",
   project_id: "Project ID",
-  project_id_tooltip_content: "Helps you identify work items in the project uniquely. Max 10 characters.",
+  project_id_tooltip_content: "Helps you identify leads in the project uniquely. Max 10 characters.",
   description_placeholder: "Description",
   only_alphanumeric_non_latin_characters_allowed: "Only Alphanumeric & Non-latin characters are allowed.",
   project_id_is_required: "Project ID is required",
@@ -211,14 +211,14 @@ export default {
   drag_to_rearrange: "Drag to rearrange",
   congrats: "Congrats!",
   open_project: "Open project",
-  issues: "Work items",
+  issues: "Leads",
   cycles: "Cycles",
   modules: "Modules",
   pages: "Pages",
   intake: "Intake",
   time_tracking: "Time Tracking",
   work_management: "Work management",
-  projects_and_issues: "Projects and work items",
+  projects_and_issues: "Projects and leads",
   projects_and_issues_description: "Toggle these on or off this project.",
   cycles_description:
     "Timebox work per project and adjust the time period as needed. One cycle can be 2 weeks, the next 1 week.",
@@ -226,7 +226,7 @@ export default {
   views_description: "Save custom sorts, filters, and display options or share them with your team.",
   pages_description: "Create and edit free-form content; notes, docs, anything.",
   intake_description: "Let non-members share bugs, feedback, and suggestions; without disrupting your workflow.",
-  time_tracking_description: "Log time spent on work items and projects.",
+  time_tracking_description: "Log time spent on leads and projects.",
   work_management_description: "Manage your work and projects with ease.",
   documentation: "Documentation",
   contact_sales: "Contact sales",
@@ -258,30 +258,30 @@ export default {
   workspace_name: "workspace-name",
   deactivate_your_account: "Deactivate your account",
   deactivate_your_account_description:
-    "Once deactivated, you can't be assigned work items and be billed for your workspace. To reactivate your account, you will need an invite to a workspace at this email address.",
+    "Once deactivated, you can't be assigned leads and be billed for your workspace. To reactivate your account, you will need an invite to a workspace at this email address.",
   deactivating: "Deactivating",
   confirm: "Confirm",
   confirming: "Confirming",
   draft_created: "Draft created",
-  issue_created_successfully: "Work item created successfully",
+  issue_created_successfully: "Lead created successfully",
   draft_creation_failed: "Draft creation failed",
-  issue_creation_failed: "Work item creation failed",
-  draft_issue: "Draft work item",
-  issue_updated_successfully: "Work item updated successfully",
-  issue_could_not_be_updated: "Work item could not be updated",
+  issue_creation_failed: "Lead creation failed",
+  draft_issue: "Draft lead",
+  issue_updated_successfully: "Lead updated successfully",
+  issue_could_not_be_updated: "Lead could not be updated",
   create_a_draft: "Create a draft",
   save_to_drafts: "Save to Drafts",
   save: "Save",
   update: "Update",
   updating: "Updating",
-  create_new_issue: "Create new work item",
+  create_new_issue: "Create New Lead",
   editor_is_not_ready_to_discard_changes: "Editor is not ready to discard changes",
-  failed_to_move_issue_to_project: "Failed to move work item to project",
+  failed_to_move_issue_to_project: "Failed to move lead to project",
   create_more: "Create more",
   add_to_project: "Add to project",
   discard: "Discard",
-  duplicate_issue_found: "Duplicate work item found",
-  duplicate_issues_found: "Duplicate work items found",
+  duplicate_issue_found: "Duplicate lead found",
+  duplicate_issues_found: "Duplicate leads found",
   no_matching_results: "No matching results",
   title_is_required: "Title is required",
   title: "Title",
@@ -302,8 +302,8 @@ export default {
   end_date: "End date",
   due_date: "Due date",
   estimate: "Estimate",
-  change_parent_issue: "Change parent work item",
-  remove_parent_issue: "Remove parent work item",
+  change_parent_issue: "Change parent lead",
+  remove_parent_issue: "Remove parent lead",
   add_parent: "Add parent",
   loading_members: "Loading members",
   view_link_copied_to_clipboard: "View link copied to clipboard.",
@@ -326,15 +326,15 @@ export default {
   show_less: "Show less",
   no_data_yet: "No Data yet",
   syncing: "Syncing",
-  add_work_item: "Add work item",
+  add_work_item: "Add lead",
   advanced_description_placeholder: "Press '/' for commands",
-  create_work_item: "Create work item",
+  create_work_item: "Create lead",
   attachments: "Attachments",
   declining: "Declining",
   declined: "Declined",
   decline: "Decline",
   unassigned: "Unassigned",
-  work_items: "Work items",
+  work_items: "Leads",
   add_link: "Add link",
   points: "Points",
   no_assignee: "No assignee",
@@ -444,14 +444,14 @@ export default {
       empty: {
         project: "Your recent projects will appear here once you visit one.",
         page: "Your recent pages will appear here once you visit one.",
-        issue: "Your recent work items will appear here once you visit one.",
+        issue: "Your recent leads will appear here once you visit one.",
         default: "You don't have any recents yet.",
       },
       filters: {
         all: "All",
         projects: "Projects",
         pages: "Pages",
-        issues: "Work items",
+        issues: "Leads",
       },
     },
     new_at_plane: {
@@ -528,9 +528,9 @@ export default {
     group_by: "Group by",
     epic: "Epic",
     epics: "Epics",
-    work_item: "Work item",
-    work_items: "Work items",
-    sub_work_item: "Sub-work item",
+    work_item: "Lead",
+    work_items: "Leads",
+    sub_work_item: "Sub-lead",
     add: "Add",
     warning: "Warning",
     updating: "Updating",
@@ -569,7 +569,7 @@ export default {
       private: "Private",
     },
     done: "Done",
-    sub_work_items: "Sub-work items",
+    sub_work_items: "Sub-leads",
     comment: "Comment",
     workspace_level: "Workspace level",
     order_by: {
@@ -595,8 +595,8 @@ export default {
     copied: "Copied!",
     link_copied: "Link copied!",
     link_copied_to_clipboard: "Link copied to clipboard",
-    copied_to_clipboard: "Work item link copied to clipboard",
-    is_copied_to_clipboard: "Work item is copied to clipboard",
+    copied_to_clipboard: "Lead link copied to clipboard",
+    is_copied_to_clipboard: "Lead is copied to clipboard",
     no_links_added_yet: "No links added yet",
     add_link: "Add link",
     links: "Links",
@@ -806,50 +806,50 @@ export default {
     },
   },
   issue: {
-    label: "{count, plural, one {Work item} other {Work items}}",
-    all: "All Work items",
-    edit: "Edit work item",
+    label: "{count, plural, one {Lead} other {Leads}}",
+    all: "All Leads",
+    edit: "Edit lead",
     title: {
-      label: "Work item title",
-      required: "Work item title is required.",
+      label: "Lead title",
+      required: "Lead title is required.",
     },
     add: {
-      press_enter: "Press 'Enter' to add another work item",
-      label: "Add work item",
+      press_enter: "Press 'Enter' to add another lead",
+      label: "Add New Lead",
       cycle: {
-        failed: "Work item could not be added to the cycle. Please try again.",
-        success: "{count, plural, one {Work item} other {Work items}} added to the cycle successfully.",
-        loading: "Adding {count, plural, one {work item} other {work items}} to the cycle",
+        failed: "Lead could not be added to the cycle. Please try again.",
+        success: "{count, plural, one {Lead} other {Leads}} added to the cycle successfully.",
+        loading: "Adding {count, plural, one {lead} other {leads}} to the cycle",
       },
       assignee: "Add assignees",
       start_date: "Add start date",
       due_date: "Add due date",
-      parent: "Add parent work item",
-      sub_issue: "Add sub-work item",
+      parent: "Add parent lead",
+      sub_issue: "Add sub-lead",
       relation: "Add relation",
       link: "Add link",
-      existing: "Add existing work item",
+      existing: "Add existing lead",
     },
     remove: {
-      label: "Remove work item",
+      label: "Remove lead",
       cycle: {
-        loading: "Removing work item from the cycle",
-        success: "Work item removed from the cycle successfully.",
-        failed: "Work item could not be removed from the cycle. Please try again.",
+        loading: "Removing lead from the cycle",
+        success: "Lead removed from the cycle successfully.",
+        failed: "Lead could not be removed from the cycle. Please try again.",
       },
       module: {
-        loading: "Removing work item from the module",
-        success: "Work item removed from the module successfully.",
-        failed: "Work item could not be removed from the module. Please try again.",
+        loading: "Removing lead from the module",
+        success: "Lead removed from the module successfully.",
+        failed: "Lead could not be removed from the module. Please try again.",
       },
       parent: {
-        label: "Remove parent work item",
+        label: "Remove parent lead",
       },
     },
-    new: "New work item",
-    adding: "Adding work item",
+    new: "Add New Lead",
+    adding: "Adding lead",
     create: {
-      success: "Work item created successfully",
+      success: "Lead created successfully",
     },
     priority: {
       urgent: "Urgent",
@@ -861,15 +861,15 @@ export default {
       properties: {
         label: "Display Properties",
         id: "ID",
-        issue_type: "Work item Type",
-        sub_issue_count: "Sub-work item count",
+        issue_type: "Lead Type",
+        sub_issue_count: "Sub-lead count",
         attachment_count: "Attachment count",
         created_on: "Created on",
-        sub_issue: "Sub-work item",
-        work_item_count: "Work item count",
+        sub_issue: "Sub-lead",
+        work_item_count: "Lead count",
       },
       extra: {
-        show_sub_issues: "Show sub-work items",
+        show_sub_issues: "Show sub-leads",
         show_empty_groups: "Show empty groups",
       },
     },
@@ -920,36 +920,35 @@ export default {
     },
     empty_state: {
       issue_detail: {
-        title: "Work item does not exist",
-        description: "The work item you are looking for does not exist, has been archived, or has been deleted.",
+        title: "Lead does not exist",
+        description: "The lead you are looking for does not exist, has been archived, or has been deleted.",
         primary_button: {
-          text: "View other work items",
+          text: "View other leads",
         },
       },
     },
     sibling: {
-      label: "Sibling work items",
+      label: "Sibling leads",
     },
     archive: {
-      description: "Only completed or canceled\nwork items can be archived",
-      label: "Archive Work item",
-      confirm_message:
-        "Are you sure you want to archive the work item? All your archived work items can be restored later.",
+      description: "Only completed or canceled\nleads can be archived",
+      label: "Archive Lead",
+      confirm_message: "Are you sure you want to archive the lead? All your archived leads can be restored later.",
       success: {
         label: "Archive success",
         message: "Your archives can be found in project archives.",
       },
       failed: {
-        message: "Work item could not be archived. Please try again.",
+        message: "Lead could not be archived. Please try again.",
       },
     },
     restore: {
       success: {
         title: "Restore success",
-        message: "Your work item can be found in project work items.",
+        message: "Your lead can be found in project leads.",
       },
       failed: {
-        message: "Work item could not be restored. Please try again.",
+        message: "Lead could not be restored. Please try again.",
       },
     },
     relation: {
@@ -958,25 +957,25 @@ export default {
       blocked_by: "Blocked by",
       blocking: "Blocking",
     },
-    copy_link: "Copy work item link",
+    copy_link: "Copy lead link",
     delete: {
-      label: "Delete work item",
-      error: "Error deleting work item",
+      label: "Delete lead",
+      error: "Error deleting lead",
     },
     subscription: {
       actions: {
-        subscribed: "Work item subscribed successfully",
-        unsubscribed: "Work item unsubscribed successfully",
+        subscribed: "Lead subscribed successfully",
+        unsubscribed: "Lead unsubscribed successfully",
       },
     },
     select: {
-      error: "Please select at least one work item",
-      empty: "No work items selected",
-      add_selected: "Add selected work items",
+      error: "Please select at least one lead",
+      empty: "No leads selected",
+      add_selected: "Add selected leads",
       select_all: "Select all",
       deselect_all: "Deselect all",
     },
-    open_in_full_screen: "Open work item in full screen",
+    open_in_full_screen: "Open lead in full screen",
   },
   attachment: {
     error: "File could not be attached. Try uploading again.",
@@ -996,22 +995,22 @@ export default {
   },
   sub_work_item: {
     update: {
-      success: "Sub-work item updated successfully",
-      error: "Error updating sub-work item",
+      success: "Sub-lead updated successfully",
+      error: "Error updating sub-lead",
     },
     remove: {
-      success: "Sub-work item removed successfully",
-      error: "Error removing sub-work item",
+      success: "Sub-lead removed successfully",
+      error: "Error removing sub-lead",
     },
     empty_state: {
       sub_list_filters: {
-        title: "You don't have sub-work items that match the filters you've applied.",
-        description: "To see all sub-work items, clear all applied filters.",
+        title: "You don't have sub-leads that match the filters you've applied.",
+        description: "To see all sub-leads, clear all applied filters.",
         action: "Clear filters",
       },
       list_filters: {
-        title: "You don't have work items that match the filters you've applied.",
-        description: "To see all work items, clear all applied filters.",
+        title: "You don't have leads that match the filters you've applied.",
+        description: "To see all leads, clear all applied filters.",
         action: "Clear filters",
       },
     },
@@ -1050,30 +1049,30 @@ export default {
     },
     modals: {
       decline: {
-        title: "Decline work item",
-        content: "Are you sure you want to decline work item {value}?",
+        title: "Decline lead",
+        content: "Are you sure you want to decline lead {value}?",
       },
       delete: {
-        title: "Delete work item",
-        content: "Are you sure you want to delete work item {value}?",
-        success: "Work item deleted successfully",
+        title: "Delete lead",
+        content: "Are you sure you want to delete lead {value}?",
+        success: "Lead deleted successfully",
       },
     },
     errors: {
-      snooze_permission: "Only project admins can snooze/Un-snooze work items",
-      accept_permission: "Only project admins can accept work items",
-      decline_permission: "Only project admins can deny work items",
+      snooze_permission: "Only project admins can snooze/Un-snooze leads",
+      accept_permission: "Only project admins can accept leads",
+      decline_permission: "Only project admins can deny leads",
     },
     actions: {
       accept: "Accept",
       decline: "Decline",
       snooze: "Snooze",
       unsnooze: "Un snooze",
-      copy: "Copy work item link",
+      copy: "Copy lead link",
       delete: "Delete",
-      open: "Open work item",
+      open: "Open lead",
       mark_as_duplicate: "Mark as duplicate",
-      move: "Move {value} to project work items",
+      move: "Move {value} to project leads",
     },
     source: {
       "in-app": "in-app",
@@ -1086,7 +1085,7 @@ export default {
     label: "Intake",
     page_label: "{workspace} - Intake",
     modal: {
-      title: "Create intake work item",
+      title: "Create intake lead",
     },
     tabs: {
       open: "Open",
@@ -1094,19 +1093,19 @@ export default {
     },
     empty_state: {
       sidebar_open_tab: {
-        title: "No open work items",
-        description: "Find open work items here. Create new work item.",
+        title: "No open leads",
+        description: "Find open leads here. Create new lead.",
       },
       sidebar_closed_tab: {
-        title: "No closed work items",
-        description: "All the work items whether accepted or declined can be found here.",
+        title: "No closed leads",
+        description: "All the leads whether accepted or declined can be found here.",
       },
       sidebar_filter: {
-        title: "No matching work items",
-        description: "No work item matches filter applied in intake. Create a new work item.",
+        title: "No matching leads",
+        description: "No lead matches filter applied in intake. Create a new lead.",
       },
       detail: {
-        title: "Select a work item to view its details.",
+        title: "Select a lead to view its details.",
       },
     },
   },
@@ -1167,7 +1166,7 @@ export default {
       general: {
         title: "Overview of your projects, activity, and metrics",
         description:
-          "Welcome to Plane, we are excited to have you here. Create your first project and track your work items, and this page will transform into a space that helps you progress. Admins will also see items which help their team progress.",
+          "Welcome to Plane, we are excited to have you here. Create your first project and track your leads, and this page will transform into a space that helps you progress. Admins will also see items which help their team progress.",
         primary_button: {
           text: "Build your first project",
           comic: {
@@ -1183,26 +1182,26 @@ export default {
     page_label: "{workspace} - Analytics",
     open_tasks: "Total open tasks",
     error: "There was some error in fetching the data.",
-    work_items_closed_in: "Work items closed in",
+    work_items_closed_in: "Leads closed in",
     selected_projects: "Selected projects",
     total_members: "Total members",
     total_cycles: "Total cycles",
     total_modules: "Total modules",
     pending_work_items: {
-      title: "Pending work items",
-      empty_state: "Analysis of pending work items by co-workers appears here.",
+      title: "Pending leads",
+      empty_state: "Analysis of pending leads by co-workers appears here.",
     },
     work_items_closed_in_a_year: {
-      title: "Work items closed in a year",
-      empty_state: "Close work items to view analysis of the same in the form of a graph.",
+      title: "Leads closed in a year",
+      empty_state: "Close leads to view analysis of the same in the form of a graph.",
     },
     most_work_items_created: {
-      title: "Most work items created",
-      empty_state: "Co-workers and the number of work items created by them appears here.",
+      title: "Most leads created",
+      empty_state: "Co-workers and the number of leads created by them appears here.",
     },
     most_work_items_closed: {
-      title: "Most work items closed",
-      empty_state: "Co-workers and the number of work items closed by them appears here.",
+      title: "Most leads closed",
+      empty_state: "Co-workers and the number of leads closed by them appears here.",
     },
     tabs: {
       scope_and_demand: "Scope and Demand",
@@ -1223,15 +1222,15 @@ export default {
     empty_state: {
       project_insights: {
         title: "No data yet",
-        description: "Work items assigned to you, broken down by state, will show up here.",
+        description: "Leads assigned to you, broken down by state, will show up here.",
       },
       created_vs_resolved: {
         title: "No data yet",
-        description: "Work items created and resolved over time will show up here.",
+        description: "Leads created and resolved over time will show up here.",
       },
       customized_insights: {
         title: "No data yet",
-        description: "Work items assigned to you, broken down by state, will show up here.",
+        description: "Leads assigned to you, broken down by state, will show up here.",
       },
       general: {
         title: "Track progress, workloads, and allocations. Spot trends, remove blockers, and move work faster",
@@ -1242,7 +1241,7 @@ export default {
           comic: {
             title: "Analytics works best with Cycles + Modules",
             description:
-              "First, timebox your work items into Cycles and, if you can, group work items that span more than a cycle into Modules. Check out both on the left nav.",
+              "First, timebox your leads into Cycles and, if you can, group leads that span more than a cycle into Modules. Check out both on the left nav.",
           },
         },
       },
@@ -1268,7 +1267,7 @@ export default {
       permission: "You don't have permission to perform this action.",
       cycle_delete: "Failed to delete cycle",
       module_delete: "Failed to delete module",
-      issue_delete: "Failed to delete work item",
+      issue_delete: "Failed to delete lead",
     },
     state: {
       backlog: "Backlog",
@@ -1305,7 +1304,7 @@ export default {
       },
       no_projects: {
         title: "No project",
-        description: "To create work items or manage your work, you need to create a project or be a part of one.",
+        description: "To create leads or manage your work, you need to create a project or be a part of one.",
         primary_button: {
           text: "Start your first project",
           comic: {
@@ -1327,33 +1326,33 @@ export default {
     add_view: "Add view",
     empty_state: {
       "all-issues": {
-        title: "No work items in the project",
-        description: "First project done! Now, slice your work into trackable pieces with work items. Let's go!",
+        title: "No leads in the project",
+        description: "First project done! Now, slice your work into trackable pieces with leads. Let's go!",
         primary_button: {
-          text: "Create new work item",
+          text: "Create new lead",
         },
       },
       assigned: {
-        title: "No work items yet",
-        description: "Work items assigned to you can be tracked from here.",
+        title: "No leads yet",
+        description: "Leads assigned to you can be tracked from here.",
         primary_button: {
-          text: "Create new work item",
+          text: "Create new lead",
         },
       },
       created: {
-        title: "No work items yet",
-        description: "All work items created by you come here, track them here directly.",
+        title: "No leads yet",
+        description: "All leads created by you come here, track them here directly.",
         primary_button: {
-          text: "Create new work item",
+          text: "Create new lead",
         },
       },
       subscribed: {
-        title: "No work items yet",
-        description: "Subscribe to work items you are interested in, track all of them here.",
+        title: "No leads yet",
+        description: "Subscribe to leads you are interested in, track all of them here.",
       },
       "custom-view": {
-        title: "No work items yet",
-        description: "Work items that applies to the filters, track all of them here.",
+        title: "No leads yet",
+        description: "Leads that applies to the filters, track all of them here.",
       },
     },
     delete_view: {
@@ -1408,7 +1407,7 @@ export default {
     },
     notifications: {
       heading: "Email notifications",
-      description: "Stay in the loop on Work items you are subscribed to. Enable this to get notified.",
+      description: "Stay in the loop on Leads you are subscribed to. Enable this to get notified.",
     },
     security: {
       heading: "Security",
@@ -1419,7 +1418,7 @@ export default {
     },
     activity: {
       heading: "Activity",
-      description: "Track your recent actions and changes across all projects and work items.",
+      description: "Track your recent actions and changes across all projects and leads.",
     },
   },
   workspace_settings: {
@@ -1508,7 +1507,7 @@ export default {
         export_separate_files: "Export the data into separate files",
         exporting_projects: "Exporting project",
         format: "Format",
-        filters_info: "Apply filters to export specific work items based on your criteria.",
+        filters_info: "Apply filters to export specific leads based on your criteria.",
         modal: {
           title: "Export to",
           toasts: {
@@ -1629,16 +1628,16 @@ export default {
     stats: {
       workload: "Workload",
       overview: "Overview",
-      created: "Work items created",
-      assigned: "Work items assigned",
-      subscribed: "Work items subscribed",
+      created: "Leads created",
+      assigned: "Leads assigned",
+      subscribed: "Leads subscribed",
       state_distribution: {
-        title: "Work items by state",
-        empty: "Create work items to view the them by states in the graph for better analysis.",
+        title: "Leads by state",
+        empty: "Create leads to view the them by states in the graph for better analysis.",
       },
       priority_distribution: {
-        title: "Work items by Priority",
-        empty: "Create work items to view the them by priority in the graph for better analysis.",
+        title: "Leads by Priority",
+        empty: "Create leads to view the them by priority in the graph for better analysis.",
       },
       recent_activity: {
         title: "Recent activity",
@@ -1666,19 +1665,19 @@ export default {
       activity: {
         title: "No activities yet",
         description:
-          "Get started by creating a new work item! Add details and properties to it. Explore more in Plane to see your activity.",
+          "Get started by creating a new lead! Add details and properties to it. Explore more in Plane to see your activity.",
       },
       assigned: {
-        title: "No work items are assigned to you",
-        description: "Work items assigned to you can be tracked from here.",
+        title: "No leads are assigned to you",
+        description: "Leads assigned to you can be tracked from here.",
       },
       created: {
-        title: "No work items yet",
-        description: "All work items created by you come here, track them here directly.",
+        title: "No leads yet",
+        description: "All leads created by you come here, track them here directly.",
       },
       subscribed: {
-        title: "No work items yet",
-        description: "Subscribe to work items you are interested in, track all of them here.",
+        title: "No leads yet",
+        description: "Subscribe to leads you are interested in, track all of them here.",
       },
     },
   },
@@ -1708,8 +1707,8 @@ export default {
       project_lead: "Project lead",
       default_assignee: "Default assignee",
       guest_super_permissions: {
-        title: "Grant view access to all work items for guest users:",
-        sub_heading: "This will allow guests to have view access to all the project work items.",
+        title: "Grant view access to all leads for guest users:",
+        sub_heading: "This will allow guests to have view access to all the project leads.",
       },
       invite_members: {
         title: "Invite members",
@@ -1719,7 +1718,7 @@ export default {
     },
     states: {
       heading: "States",
-      description: "Define and customize workflow states to track the progress of your work items.",
+      description: "Define and customize workflow states to track the progress of your leads.",
       describe_this_state_for_your_members: "Describe this state for your members.",
       empty_state: {
         title: "No states available for the {groupKey} group",
@@ -1728,7 +1727,7 @@ export default {
     },
     labels: {
       heading: "Labels",
-      description: "Create custom labels to categorize and organize your work items",
+      description: "Create custom labels to categorize and organize your leads",
       label_title: "Label title",
       label_title_is_required: "Label title is required",
       label_max_char: "Label name should not exceed 255 characters",
@@ -1738,7 +1737,7 @@ export default {
     },
     custom_fields: {
       heading: "Custom fields",
-      description: "Define custom fields to capture extra information on your work items.",
+      description: "Define custom fields to capture extra information on your leads.",
       add_field: "Add field",
       field_name: "Field name",
       field_name_is_required: "Field name is required",
@@ -1755,7 +1754,7 @@ export default {
     },
     estimates: {
       heading: "Estimates",
-      description: "Set up estimation systems to track and communicate the effort required for each work item.",
+      description: "Set up estimation systems to track and communicate the effort required for each lead.",
       label: "Estimates",
       title: "Enable estimates for my project",
       enable_description: "They help you in communicating complexity and workload of the team.",
@@ -1844,25 +1843,25 @@ export default {
       description:
         "Configure automated actions to streamline your project management workflow and reduce manual tasks.",
       "auto-archive": {
-        title: "Auto-archive closed work items",
-        description: "Plane will auto archive work items that have been completed or canceled.",
-        duration: "Auto-archive work items that are closed for",
+        title: "Auto-archive closed leads",
+        description: "Plane will auto archive leads that have been completed or canceled.",
+        duration: "Auto-archive leads that are closed for",
       },
       "auto-close": {
-        title: "Auto-close work items",
-        description: "Plane will automatically close work items that haven't been completed or canceled.",
-        duration: "Auto-close work items that are inactive for",
+        title: "Auto-close leads",
+        description: "Plane will automatically close leads that haven't been completed or canceled.",
+        duration: "Auto-close leads that are inactive for",
         auto_close_status: "Auto-close status",
       },
     },
     empty_state: {
       labels: {
         title: "No labels yet",
-        description: "Create labels to help organize and filter work items in you project.",
+        description: "Create labels to help organize and filter leads in you project.",
       },
       estimates: {
         title: "No estimate systems yet",
-        description: "Create a set of estimates to communicate the amount of work per work item.",
+        description: "Create a set of estimates to communicate the amount of work per lead.",
         primary_button: "Add estimate system",
       },
     },
@@ -1917,16 +1916,16 @@ export default {
     start_date: "Start date",
     end_date: "End date",
     in_your_timezone: "In your timezone",
-    transfer_work_items: "Transfer {count} work items",
+    transfer_work_items: "Transfer {count} leads",
     date_range: "Date range",
     add_date: "Add date",
     active_cycle: {
       label: "Active cycle",
       progress: "Progress",
       chart: "Burndown chart",
-      priority_issue: "Priority work items",
+      priority_issue: "Priority leads",
       assignees: "Assignees",
-      issue_burndown: "Work item burndown",
+      issue_burndown: "Lead burndown",
       ideal: "Ideal",
       current: "Current",
       labels: "Labels",
@@ -2009,19 +2008,19 @@ export default {
         },
       },
       no_issues: {
-        title: "No work items added to the cycle",
-        description: "Add or create work items you wish to timebox and deliver within this cycle",
+        title: "No leads added to the cycle",
+        description: "Add or create leads you wish to timebox and deliver within this cycle",
         primary_button: {
-          text: "Create new work item",
+          text: "Create new lead",
         },
         secondary_button: {
-          text: "Add existing work item",
+          text: "Add existing lead",
         },
       },
       completed_no_issues: {
-        title: "No work items in the cycle",
+        title: "No leads in the cycle",
         description:
-          "No work items in the cycle. Work items are either transferred or hidden. To see hidden work items if any, update your display properties accordingly.",
+          "No leads in the cycle. Leads are either transferred or hidden. To see hidden leads if any, update your display properties accordingly.",
       },
       active: {
         title: "No active cycle",
@@ -2037,28 +2036,28 @@ export default {
   project_issues: {
     empty_state: {
       no_issues: {
-        title: "Create a work item and assign it to someone, even yourself",
+        title: "Create a lead and assign it to someone, even yourself",
         description:
-          "Think of work items as jobs, tasks, work, or JTBD. Which we like. A work item and its sub-work items are usually time-based actionables assigned to members of your team. Your team creates, assigns, and completes work items to move your project towards its goal.",
+          "Think of leads as jobs, tasks, work, or JTBD. Which we like. A lead and its sub-leads are usually time-based actionables assigned to members of your team. Your team creates, assigns, and completes leads to move your project towards its goal.",
         primary_button: {
-          text: "Create your first work item",
+          text: "Create your first lead",
           comic: {
-            title: "Work items are building blocks in Plane.",
+            title: "Leads are building blocks in Plane.",
             description:
-              "Redesign the Plane UI, Rebrand the company, or Launch the new fuel injection system are examples of work items that likely have sub-work items.",
+              "Redesign the Plane UI, Rebrand the company, or Launch the new fuel injection system are examples of leads that likely have sub-leads.",
           },
         },
       },
       no_archived_issues: {
-        title: "No archived work items yet",
+        title: "No archived leads yet",
         description:
-          "Manually or through automation, you can archive work items that are completed or cancelled. Find them here once archived.",
+          "Manually or through automation, you can archive leads that are completed or cancelled. Find them here once archived.",
         primary_button: {
           text: "Set automation",
         },
       },
       issues_empty_filter: {
-        title: "No work items found matching the filters applied",
+        title: "No leads found matching the filters applied",
         secondary_button: {
           text: "Clear all filters",
         },
@@ -2076,7 +2075,7 @@ export default {
       general: {
         title: "Map your project milestones to Modules and track aggregated work easily.",
         description:
-          "A group of work items that belong to a logical, hierarchical parent form a module. Think of them as a way to track work by project milestones. They have their own periods and deadlines as well as analytics to help you see how close or far you are from a milestone.",
+          "A group of leads that belong to a logical, hierarchical parent form a module. Think of them as a way to track work by project milestones. They have their own periods and deadlines as well as analytics to help you see how close or far you are from a milestone.",
         primary_button: {
           text: "Build your first module",
           comic: {
@@ -2087,13 +2086,13 @@ export default {
         },
       },
       no_issues: {
-        title: "No work items in the module",
-        description: "Create or add work items which you want to accomplish as part of this module",
+        title: "No leads in the module",
+        description: "Create or add leads which you want to accomplish as part of this module",
         primary_button: {
-          text: "Create new work items",
+          text: "Create new leads",
         },
         secondary_button: {
-          text: "Add an existing work item",
+          text: "Add an existing lead",
         },
       },
       archived: {
@@ -2129,7 +2128,7 @@ export default {
         primary_button: {
           text: "Create your first view",
           comic: {
-            title: "Views work atop Work item properties.",
+            title: "Views work atop Lead properties.",
             description: "You can create a view from here with as many properties as filters as you see fit.",
           },
         },
@@ -2151,7 +2150,7 @@ export default {
         title:
           "Write a note, a doc, or a full knowledge base. Get Galileo, Plane's AI assistant, to help you get started",
         description:
-          "Pages are thoughts potting space in Plane. Take down meeting notes, format them easily, embed work items, lay them out using a library of components, and keep them all in your project's context. To make short work of any doc, invoke Galileo, Plane's AI, with a shortcut or the click of a button.",
+          "Pages are thoughts potting space in Plane. Take down meeting notes, format them easily, embed leads, lay them out using a library of components, and keep them all in your project's context. To make short work of any doc, invoke Galileo, Plane's AI, with a shortcut or the click of a button.",
         primary_button: {
           text: "Create your first page",
         },
@@ -2186,10 +2185,10 @@ export default {
   issue_relation: {
     empty_state: {
       search: {
-        title: "No matching work items found",
+        title: "No matching leads found",
       },
       no_issues: {
-        title: "No work items found",
+        title: "No leads found",
       },
     },
   },
@@ -2197,7 +2196,7 @@ export default {
     empty_state: {
       general: {
         title: "No comments yet",
-        description: "Comments can be used as a discussion and follow-up space for the work items",
+        description: "Comments can be used as a discussion and follow-up space for the leads",
       },
     },
   },
@@ -2231,12 +2230,12 @@ export default {
         title: "Select to view details.",
       },
       all: {
-        title: "No work items assigned",
-        description: "Updates for work items assigned to you can be \n seen here",
+        title: "No leads assigned",
+        description: "Updates for leads assigned to you can be \n seen here",
       },
       mentions: {
-        title: "No work items assigned",
-        description: "Updates for work items assigned to you can be \n seen here",
+        title: "No leads assigned",
+        description: "Updates for leads assigned to you can be \n seen here",
       },
     },
     tabs: {
@@ -2260,19 +2259,19 @@ export default {
   active_cycle: {
     empty_state: {
       progress: {
-        title: "Add work items to the cycle to view it's progress",
+        title: "Add leads to the cycle to view it's progress",
       },
       chart: {
-        title: "Add work items to the cycle to view the burndown chart.",
+        title: "Add leads to the cycle to view the burndown chart.",
       },
       priority_issue: {
-        title: "Observe high priority work items tackled in the cycle at a glance.",
+        title: "Observe high priority leads tackled in the cycle at a glance.",
       },
       assignee: {
-        title: "Add assignees to work items to see a breakdown of work by assignees.",
+        title: "Add assignees to leads to see a breakdown of work by assignees.",
       },
       label: {
-        title: "Add labels to work items to see the breakdown of work by labels.",
+        title: "Add labels to leads to see the breakdown of work by labels.",
       },
     },
   },
@@ -2281,7 +2280,7 @@ export default {
       inbox: {
         title: "Intake is not enabled for the project.",
         description:
-          "Intake helps you manage incoming requests to your project and add them as work items in your workflow. Enable intake from project settings to manage requests.",
+          "Intake helps you manage incoming requests to your project and add them as leads in your workflow. Enable intake from project settings to manage requests.",
         primary_button: {
           text: "Manage features",
         },
@@ -2321,11 +2320,10 @@ export default {
     },
   },
   workspace_draft_issues: {
-    draft_an_issue: "Draft a work item",
+    draft_an_issue: "Draft a lead",
     empty_state: {
-      title: "Half-written work items, and soon, comments will show up here.",
-      description:
-        "To try this out, start adding a work item and leave it mid-way or create your first draft below. 😉",
+      title: "Half-written leads, and soon, comments will show up here.",
+      description: "To try this out, start adding a lead and leave it mid-way or create your first draft below. 😉",
       primary_button: {
         text: "Create your first draft",
       },
@@ -2337,7 +2335,7 @@ export default {
     toasts: {
       created: {
         success: "Draft created",
-        error: "Work item could not be created. Please try again.",
+        error: "Lead could not be created. Please try again.",
       },
       deleted: {
         success: "Draft deleted",
@@ -2431,37 +2429,37 @@ export default {
   importer: {
     github: {
       title: "Github",
-      description: "Import work items from GitHub repositories and sync them.",
+      description: "Import leads from GitHub repositories and sync them.",
     },
     jira: {
       title: "Jira",
-      description: "Import work items and epics from Jira projects and epics.",
+      description: "Import leads and epics from Jira projects and epics.",
     },
   },
   exporter: {
     csv: {
       title: "CSV",
-      description: "Export work items to a CSV file.",
+      description: "Export leads to a CSV file.",
       short_description: "Export as csv",
     },
     excel: {
       title: "Excel",
-      description: "Export work items to a Excel file.",
+      description: "Export leads to a Excel file.",
       short_description: "Export as excel",
     },
     xlsx: {
       title: "Excel",
-      description: "Export work items to a Excel file.",
+      description: "Export leads to a Excel file.",
       short_description: "Export as excel",
     },
     json: {
       title: "JSON",
-      description: "Export work items to a JSON file.",
+      description: "Export leads to a JSON file.",
       short_description: "Export as json",
     },
   },
   default_global_view: {
-    all_issues: "All work items",
+    all_issues: "All leads",
     assigned: "Assigned",
     created: "Created",
     subscribed: "Subscribed",
@@ -2505,7 +2503,7 @@ export default {
     order_by: {
       name: "Name",
       progress: "Progress",
-      issues: "Number of work items",
+      issues: "Number of leads",
       due_date: "Due date",
       created_at: "Created date",
       manual: "Manual",
@@ -2579,8 +2577,8 @@ export default {
   power_k: {
     contextual_actions: {
       work_item: {
-        title: "Work item actions",
-        indicator: "Work item",
+        title: "Lead actions",
+        indicator: "Lead",
         change_state: "Change state",
         change_priority: "Change priority",
         change_assignees: "Assign to",
@@ -2594,14 +2592,14 @@ export default {
         unsubscribe: "Unsubscribe from notifications",
         delete: "Delete",
         copy_id: "Copy ID",
-        copy_id_toast_success: "Work item ID copied to clipboard.",
-        copy_id_toast_error: "Some error occurred while copying the work item ID to clipboard.",
+        copy_id_toast_success: "Lead ID copied to clipboard.",
+        copy_id_toast_error: "Some error occurred while copying the lead ID to clipboard.",
         copy_title: "Copy title",
-        copy_title_toast_success: "Work item title copied to clipboard.",
-        copy_title_toast_error: "Some error occurred while copying the work item title to clipboard.",
+        copy_title_toast_success: "Lead title copied to clipboard.",
+        copy_title_toast_error: "Some error occurred while copying the lead title to clipboard.",
         copy_url: "Copy URL",
-        copy_url_toast_success: "Work item URL copied to clipboard.",
-        copy_url_toast_error: "Some error occurred while copying the work item URL to clipboard.",
+        copy_url_toast_success: "Lead URL copied to clipboard.",
+        copy_url_toast_error: "Some error occurred while copying the lead URL to clipboard.",
       },
       cycle: {
         title: "Cycle actions",
@@ -2640,7 +2638,7 @@ export default {
       },
     },
     creation_actions: {
-      create_work_item: "New work item",
+      create_work_item: "New lead",
       create_page: "New page",
       create_view: "New view",
       create_cycle: "New cycle",
@@ -2656,16 +2654,16 @@ export default {
       nav_account_settings: "Go to account settings",
       open_project: "Open a project",
       nav_projects_list: "Go to projects list",
-      nav_all_workspace_work_items: "Go to all work items",
-      nav_assigned_workspace_work_items: "Go to assigned work items",
-      nav_created_workspace_work_items: "Go to created work items",
-      nav_subscribed_workspace_work_items: "Go to subscribed work items",
+      nav_all_workspace_work_items: "Go to all leads",
+      nav_assigned_workspace_work_items: "Go to assigned leads",
+      nav_created_workspace_work_items: "Go to created leads",
+      nav_subscribed_workspace_work_items: "Go to subscribed leads",
       nav_workspace_analytics: "Go to workspace analytics",
       nav_workspace_drafts: "Go to workspace drafts",
       nav_workspace_archives: "Go to workspace archives",
       open_workspace_setting: "Open a workspace setting",
       nav_workspace_settings: "Go to workspace settings",
-      nav_project_work_items: "Go to work items",
+      nav_project_work_items: "Go to leads",
       open_project_cycle: "Open a cycle",
       nav_project_cycles: "Go to cycles",
       open_project_module: "Open a module",
