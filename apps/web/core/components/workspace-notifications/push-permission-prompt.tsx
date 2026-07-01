@@ -14,10 +14,9 @@ import { TOAST_TYPE, setToast } from "@plane/propel/toast";
 import { useUser } from "@/hooks/store/user";
 // lib
 import {
-  getExistingPushSubscription,
+  ensurePushSubscription,
   isPushNotificationSupported,
   registerPushServiceWorker,
-  subscribeToPushNotifications,
 } from "@/lib/push-notifications";
 
 // remember a dismissal so we don't nag the user every time the app loads
@@ -42,13 +41,11 @@ export const PushNotificationPrompt = observer(function PushNotificationPrompt()
         const registration = await registerPushServiceWorker();
         if (!registration || cancelled) return;
 
-        // already subscribed on this device -> nothing to do
-        const existingSubscription = await getExistingPushSubscription(registration);
-        if (existingSubscription || cancelled) return;
-
         if (Notification.permission === "granted") {
-          // permission is granted but no subscription exists yet -> subscribe silently
-          await subscribeToPushNotifications(registration);
+          // Reconcile every load: re-save the live subscription and re-subscribe
+          // if it was bound to a stale VAPID key, so the backend never pushes to a
+          // subscription the browser can no longer decrypt.
+          await ensurePushSubscription(registration);
           return;
         }
 
@@ -78,7 +75,7 @@ export const PushNotificationPrompt = observer(function PushNotificationPrompt()
       const registration = await registerPushServiceWorker();
       if (!registration) throw new Error("Service worker is unavailable");
 
-      await subscribeToPushNotifications(registration);
+      await ensurePushSubscription(registration);
       setToast({
         type: TOAST_TYPE.SUCCESS,
         title: "Notifications enabled",
