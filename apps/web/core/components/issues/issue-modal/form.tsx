@@ -28,7 +28,7 @@ import {
 } from "@plane/utils";
 // components
 import {
-  CreateWorkItemCustomFields,
+  CreateWorkItemProperties,
   IssueDefaultProperties,
   IssueDescriptionEditor,
   IssueParentTag,
@@ -492,7 +492,13 @@ export const IssueFormRoot = observer(function IssueFormRoot(props: IssueFormPro
                 workspaceSlug={workspaceSlug?.toString()}
               />
               {!data?.id && (
-                <CreateWorkItemCustomFields projectId={projectId} workspaceSlug={workspaceSlug?.toString()} />
+                <CreateWorkItemProperties
+                  control={control}
+                  id={data?.id}
+                  projectId={projectId}
+                  workspaceSlug={workspaceSlug?.toString()}
+                  handleFormChange={handleFormChange}
+                />
               )}
             </div>
             <div
@@ -501,21 +507,23 @@ export const IssueFormRoot = observer(function IssueFormRoot(props: IssueFormPro
                 activeAdditionalPropertiesLength > 0 && "shadow-raised-100"
               )}
             >
-              <div className="pb-3">
-                <IssueDefaultProperties
-                  control={control}
-                  id={data?.id}
-                  projectId={projectId}
-                  workspaceSlug={workspaceSlug?.toString()}
-                  selectedParentIssue={selectedParentIssue}
-                  startDate={watch("start_date")}
-                  targetDate={watch("target_date")}
-                  parentId={watch("parent_id")}
-                  isDraft={isDraft}
-                  handleFormChange={handleFormChange}
-                  setSelectedParentIssue={setSelectedParentIssue}
-                />
-              </div>
+              {data?.id && (
+                <div className="pb-3">
+                  <IssueDefaultProperties
+                    control={control}
+                    id={data?.id}
+                    projectId={projectId}
+                    workspaceSlug={workspaceSlug?.toString()}
+                    selectedParentIssue={selectedParentIssue}
+                    startDate={watch("start_date")}
+                    targetDate={watch("target_date")}
+                    parentId={watch("parent_id")}
+                    isDraft={isDraft}
+                    handleFormChange={handleFormChange}
+                    setSelectedParentIssue={setSelectedParentIssue}
+                  />
+                </div>
+              )}
               {showActionButtons && (
                 <div
                   className="flex items-center justify-end gap-4 border-t-[0.5px] border-subtle pt-6 pb-3"
