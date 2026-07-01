@@ -5,15 +5,15 @@
  */
 
 // plane package imports
-import type { ChartXAxisProperty } from "@plane/types";
+import type { TChartDimension } from "@plane/types";
 import { CustomSelect } from "@plane/ui";
 
 type Props = {
-  value?: ChartXAxisProperty;
-  onChange: (val: ChartXAxisProperty | null) => void;
-  options: { value: ChartXAxisProperty; label: string }[];
+  value?: TChartDimension;
+  onChange: (val: TChartDimension | null) => void;
+  options: { value: TChartDimension; label: string }[];
   placeholder?: string;
-  hiddenOptions?: ChartXAxisProperty[];
+  hiddenOptions?: TChartDimension[];
   allowNoValue?: boolean;
   label?: string | React.ReactNode;
 };

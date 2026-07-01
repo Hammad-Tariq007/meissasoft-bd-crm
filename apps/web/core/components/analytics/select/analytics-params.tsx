@@ -12,12 +12,14 @@ import { SlidersHorizontal } from "lucide-react";
 // plane package imports
 import { ANALYTICS_X_AXIS_VALUES, ANALYTICS_Y_AXIS_VALUES } from "@plane/constants";
 import { CalendarLayoutIcon } from "@plane/propel/icons";
-import type { IAnalyticsParams } from "@plane/types";
+import type { IAnalyticsParams, TChartDimension } from "@plane/types";
 import { ChartYAxisMetric } from "@plane/types";
 import { cn } from "@plane/utils";
 // plane web components
 import { SelectXAxis } from "./select-x-axis";
 import { SelectYAxis } from "./select-y-axis";
+
+type TDimensionOption = { value: TChartDimension; label: string };
 
 type Props = {
   control: Control<IAnalyticsParams, unknown>;
@@ -26,17 +28,23 @@ type Props = {
   workspaceSlug: string;
   classNames?: string;
   isEpic?: boolean;
+  // Extra dimensions (e.g. single-select custom fields) appended to the property lists.
+  customFieldOptions?: TDimensionOption[];
 };
 
 export const AnalyticsSelectParams = observer(function AnalyticsSelectParams(props: Props) {
-  const { control, params, classNames, isEpic } = props;
+  const { control, params, classNames, isEpic, customFieldOptions } = props;
+  const allOptions = useMemo<TDimensionOption[]>(
+    () => [...ANALYTICS_X_AXIS_VALUES, ...(customFieldOptions ?? [])],
+    [customFieldOptions]
+  );
   const xAxisOptions = useMemo(
-    () => ANALYTICS_X_AXIS_VALUES.filter((option) => option.value !== params.group_by),
-    [params.group_by]
+    () => allOptions.filter((option) => option.value !== params.group_by),
+    [allOptions, params.group_by]
   );
   const groupByOptions = useMemo(
-    () => ANALYTICS_X_AXIS_VALUES.filter((option) => option.value !== params.x_axis),
-    [params.x_axis]
+    () => allOptions.filter((option) => option.value !== params.x_axis),
+    [allOptions, params.x_axis]
   );
 
   return (

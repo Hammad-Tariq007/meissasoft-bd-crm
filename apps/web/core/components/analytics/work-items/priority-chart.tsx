@@ -18,11 +18,19 @@ import { useTranslation } from "@plane/i18n";
 import { Button } from "@plane/propel/button";
 import { BarChart } from "@plane/propel/charts/bar-chart";
 import { EmptyStateCompact } from "@plane/propel/empty-state";
-import type { TBarItem, TChart, TChartDatum, ChartXAxisProperty, ChartYAxisMetric } from "@plane/types";
+import type {
+  TBarItem,
+  TChart,
+  TChartDatum,
+  TChartDimension,
+  ChartXAxisProperty,
+  ChartYAxisMetric,
+} from "@plane/types";
 // plane web components
 import { generateExtendedColors, parseChartData } from "@/components/chart/utils";
 // hooks
 import { useAnalytics } from "@/hooks/store/use-analytics";
+import { useCustomField } from "@/hooks/store/use-custom-field";
 import { useProjectState } from "@/hooks/store/use-project-state";
 import { AnalyticsService } from "@/services/analytics.service";
 import { exportCSV } from "../export";
@@ -42,9 +50,9 @@ declare module "@tanstack/react-table" {
 }
 
 interface Props {
-  x_axis: ChartXAxisProperty;
+  x_axis: TChartDimension;
   y_axis: ChartYAxisMetric;
-  group_by?: ChartXAxisProperty;
+  group_by?: TChartDimension;
   x_axis_date_grouping?: ChartXAxisDateGrouping;
 }
 
@@ -54,6 +62,7 @@ const PriorityChart = observer(function PriorityChart(props: Props) {
   const { t } = useTranslation();
   // store hooks
   const { selectedDuration, selectedProjects, selectedCycle, selectedModule, isPeekView, isEpic } = useAnalytics();
+  const { getProjectCustomFields } = useCustomField();
   const { workspaceStates } = useProjectState();
   const { resolvedTheme } = useTheme();
   // router
@@ -80,7 +89,13 @@ const PriorityChart = observer(function PriorityChart(props: Props) {
   );
   const parsedData = useMemo(
     () =>
-      priorityChartData && parseChartData(priorityChartData, props.x_axis, props.group_by, props.x_axis_date_grouping),
+      priorityChartData &&
+      parseChartData(
+        priorityChartData,
+        props.x_axis as ChartXAxisProperty,
+        props.group_by as ChartXAxisProperty | undefined,
+        props.x_axis_date_grouping
+      ),
     [priorityChartData, props.x_axis, props.group_by, props.x_axis_date_grouping]
   );
   const chart_model = props.group_by ? EChartModels.STACKED : EChartModels.BASIC;
@@ -143,10 +158,17 @@ const PriorityChart = observer(function PriorityChart(props: Props) {
     () => ANALYTICS_Y_AXIS_VALUES.find((item) => item.value === props.y_axis)?.label ?? props.y_axis,
     [props.y_axis]
   );
-  const xAxisLabel = useMemo(
-    () => ANALYTICS_X_AXIS_VALUES.find((item) => item.value === props.x_axis)?.label ?? props.x_axis,
-    [props.x_axis]
-  );
+  const xAxisLabel = useMemo(() => {
+    const nativeLabel = ANALYTICS_X_AXIS_VALUES.find((item) => item.value === props.x_axis)?.label;
+    if (nativeLabel) return nativeLabel;
+    // Custom-field dimension: resolve its display name from the scoped project's fields.
+    if (typeof props.x_axis === "string" && props.x_axis.startsWith("CUSTOM_FIELD_") && selectedProjects.length === 1) {
+      const fieldId = props.x_axis.slice("CUSTOM_FIELD_".length);
+      const field = (getProjectCustomFields(selectedProjects[0]) ?? []).find((f) => f.id === fieldId);
+      if (field) return field.name;
+    }
+    return props.x_axis;
+  }, [props.x_axis, selectedProjects, getProjectCustomFields]);
 
   const defaultColumns: ColumnDef<TChartDatum>[] = useMemo(
     () => [

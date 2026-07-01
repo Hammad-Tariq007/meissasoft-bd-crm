@@ -21,7 +21,9 @@ from plane.db.models import (
     ProjectPage,
     Workspace,
     ProjectMember,
+    CustomFieldDefinition,
 )
+from plane.db.models.custom_field import CustomFieldType
 from plane.utils.build_chart import build_analytics_chart
 from plane.utils.date_utils import (
     get_analytics_filters,
@@ -304,8 +306,19 @@ class AdvanceAnalyticsChartEndpoint(AdvanceAnalyticsBaseView):
                 start_date, end_date = self.filters["chart_period_range"]
                 queryset = queryset.filter(created_at__date__gte=start_date, created_at__date__lte=end_date)
 
+            # Single-select custom fields in this workspace are groupable dimensions.
+            allowed_custom_field_ids = set(
+                CustomFieldDefinition.objects.filter(
+                    workspace__slug=slug,
+                    field_type=CustomFieldType.SINGLE_SELECT,
+                    is_active=True,
+                ).values_list("id", flat=True)
+            )
+
             return Response(
-                build_analytics_chart(queryset, x_axis, group_by),
+                build_analytics_chart(
+                    queryset, x_axis, group_by, allowed_custom_field_ids=allowed_custom_field_ids
+                ),
                 status=status.HTTP_200_OK,
             )
 
