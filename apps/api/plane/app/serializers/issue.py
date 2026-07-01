@@ -229,8 +229,21 @@ class IssueCreateSerializer(BaseSerializer):
             except IntegrityError:
                 pass
         else:
-            # Then assign it to default assignee, if it is a valid assignee
+            # No explicit assignee: default the owner to the creating user when
+            # they are an active project member; otherwise fall back to the
+            # project's configured default assignee (e.g. intake/bot-created items).
+            fallback_assignee_id = None
             if (
+                created_by_id is not None
+                and ProjectMember.objects.filter(
+                    member_id=created_by_id,
+                    project_id=project_id,
+                    role__gte=15,
+                    is_active=True,
+                ).exists()
+            ):
+                fallback_assignee_id = created_by_id
+            elif (
                 default_assignee_id is not None
                 and ProjectMember.objects.filter(
                     member_id=default_assignee_id,
@@ -239,9 +252,12 @@ class IssueCreateSerializer(BaseSerializer):
                     is_active=True,
                 ).exists()
             ):
+                fallback_assignee_id = default_assignee_id
+
+            if fallback_assignee_id is not None:
                 try:
                     IssueAssignee.objects.create(
-                        assignee_id=default_assignee_id,
+                        assignee_id=fallback_assignee_id,
                         issue=issue,
                         project_id=project_id,
                         workspace_id=workspace_id,
