@@ -76,14 +76,19 @@ export const CreateWorkItemProperties = observer(function CreateWorkItemProperti
 
   return (
     <div className="px-5">
-      <h6 className="mb-3 text-body-xs-medium text-secondary">{t("common.properties")}</h6>
-      {/* rows scroll as a group so the modal never grows unbounded and the footer stays visible */}
-      <div className="vertical-scrollbar scrollbar-sm max-h-[35vh] space-y-2.5 overflow-y-auto pr-1">
+      <h6 className="mb-2 px-2 text-body-xs-medium text-secondary">{t("common.properties")}</h6>
+      {/* rows scroll as a group so the modal never grows unbounded and the footer stays visible;
+          hairline dividers give rhythm along the natural field sequence (no semantic grouping) */}
+      <div className="vertical-scrollbar scrollbar-sm max-h-[35vh] divide-y divide-subtle overflow-y-auto pr-1">
         <Controller
           control={control}
           name="state_id"
           render={({ field: { value, onChange } }) => (
-            <SidebarPropertyListItem icon={StatePropertyIcon} label={t("common.state")}>
+            <SidebarPropertyListItem
+              icon={StatePropertyIcon}
+              label={t("common.state")}
+              className="cursor-pointer gap-3 rounded-md px-2 py-2 hover:bg-layer-1"
+            >
               <StateDropdown
                 value={value}
                 onChange={(val) => {
@@ -108,7 +113,11 @@ export const CreateWorkItemProperties = observer(function CreateWorkItemProperti
           control={control}
           name="priority"
           render={({ field: { value, onChange } }) => (
-            <SidebarPropertyListItem icon={PriorityPropertyIcon} label={t("common.priority")}>
+            <SidebarPropertyListItem
+              icon={PriorityPropertyIcon}
+              label={t("common.priority")}
+              className="cursor-pointer gap-3 rounded-md px-2 py-2 hover:bg-layer-1"
+            >
               <PriorityDropdown
                 value={value}
                 onChange={(val) => {
@@ -116,9 +125,11 @@ export const CreateWorkItemProperties = observer(function CreateWorkItemProperti
                   handleFormChange();
                 }}
                 buttonVariant="transparent-with-text"
-                className="h-7.5 w-full grow rounded-sm"
+                className="group h-7.5 w-full grow rounded-sm"
                 buttonContainerClassName="size-full text-left"
                 buttonClassName="size-full px-2 py-0.5 whitespace-nowrap [&_svg]:size-3.5"
+                dropdownArrow
+                dropdownArrowClassName="h-3.5 w-3.5 hidden group-hover:inline"
                 tabIndex={getIndex("priority")}
               />
             </SidebarPropertyListItem>
@@ -132,6 +143,7 @@ export const CreateWorkItemProperties = observer(function CreateWorkItemProperti
               key={field.id}
               icon={CUSTOM_FIELD_ICONS[field.field_type]}
               label={field.name}
+              className="cursor-pointer gap-3 rounded-md px-2 py-2 hover:bg-layer-1"
               appendElement={field.is_required ? <span className="text-danger-primary">*</span> : undefined}
               childrenClassName={customFieldValueErrors[field.id] ? "rounded-sm ring-1 ring-danger-primary" : undefined}
             >

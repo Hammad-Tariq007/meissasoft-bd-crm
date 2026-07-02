@@ -13,16 +13,17 @@ type TSidebarPropertyListItemProps = {
   children: ReactNode;
   appendElement?: ReactNode;
   childrenClassName?: string;
+  className?: string;
 };
 
 export function SidebarPropertyListItem(props: TSidebarPropertyListItemProps) {
-  const { icon: Icon, label, children, appendElement, childrenClassName } = props;
+  const { icon: Icon, label, children, appendElement, childrenClassName, className } = props;
 
   return (
-    <div className="flex items-start gap-2">
+    <div role="group" aria-label={label} className={cn("flex items-start gap-2", className)}>
       <div className="flex h-7.5 w-30 shrink-0 items-center gap-1.5 text-body-xs-regular text-tertiary">
         <Icon className="size-4 shrink-0" />
-        <span>{label}</span>
+        <span className="min-w-0 truncate">{label}</span>
         {appendElement}
       </div>
       <div className={cn("flex grow flex-wrap items-center gap-1", childrenClassName)}>{children}</div>

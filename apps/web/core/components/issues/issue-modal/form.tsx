@@ -389,7 +389,7 @@ export const IssueFormRoot = observer(function IssueFormRoot(props: IssueFormPro
             onSubmit={handleSubmit((data) => handleFormSubmit(data))}
             className="flex w-full flex-col"
           >
-            <div className="rounded-t-lg bg-surface-1 p-5">
+            <div className="rounded-t-lg bg-surface-1 p-6">
               <h3 className="pb-2 text-h4-medium text-secondary">{modalTitle}</h3>
               <div className="flex items-center justify-between pt-2 pb-4">
                 <div className="flex items-center gap-x-1">
@@ -458,7 +458,7 @@ export const IssueFormRoot = observer(function IssueFormRoot(props: IssueFormPro
             </div>
             <div
               className={cn(
-                "space-y-3 bg-surface-1 pb-4",
+                "space-y-4 bg-surface-1 pb-4",
                 activeAdditionalPropertiesLength > 4 &&
                   "vertical-scrollbar scrollbar-sm max-h-[45vh] overflow-hidden overflow-y-auto"
               )}
