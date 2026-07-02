@@ -328,7 +328,14 @@ CELERY_IMPORTS = (
     # issue version tasks
     "plane.bgtasks.issue_version_sync",
     "plane.bgtasks.issue_description_version_sync",
+    # BD follow-up reminders
+    "plane.bgtasks.followup_reminder_task",
 )
+
+# BD follow-up reminders (stale-lead web-push nudges)
+REMINDER_ENABLED = os.environ.get("REMINDER_ENABLED", "0") == "1"
+REMINDER_DAYS = int(os.environ.get("REMINDER_DAYS", "3"))
+FOLLOWUP_ADMIN_USER_ID = os.environ.get("FOLLOWUP_ADMIN_USER_ID") or None
 
 FILE_SIZE_LIMIT = int(os.environ.get("FILE_SIZE_LIMIT", 5242880))
 

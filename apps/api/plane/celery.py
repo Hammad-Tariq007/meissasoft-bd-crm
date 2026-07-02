@@ -77,6 +77,11 @@ app.conf.beat_schedule = {
         "task": "plane.bgtasks.exporter_expired_task.delete_old_s3_link",
         "schedule": crontab(hour=3, minute=45),  # UTC 03:45
     },
+    # BD: nudge assignees/admin about stale open leads — 09:00 daily (server tz is UTC).
+    "send-followup-reminders-daily": {
+        "task": "plane.bgtasks.followup_reminder_task.send_followup_reminders",
+        "schedule": crontab(hour=9, minute=0),  # UTC 09:00
+    },
 }
 
 
