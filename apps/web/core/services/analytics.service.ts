@@ -88,6 +88,14 @@ export class AnalyticsService extends APIService {
       });
   }
 
+  async getBDInsights<T>(workspaceSlug: string, params: Record<string, string | undefined>): Promise<T> {
+    return this.get(`/api/workspaces/${workspaceSlug}/advance-analytics-bd/`, { params })
+      .then((res) => res?.data)
+      .catch((err) => {
+        throw err?.response?.data;
+      });
+  }
+
   processUrl<_T extends string>(
     endpoint: string,
     workspaceSlug: string,

@@ -38,9 +38,13 @@ export enum ChartYAxisMetric {
 }
 
 export type TAnalyticsTabsBase = "overview" | "work-items";
+// Tab keys shown in the analytics UI. "bd-insights" is a UI-only tab (its own
+// endpoint), kept separate from TAnalyticsTabsBase so the base analytics service
+// params and ANALYTICS_INSIGHTS_FIELDS record are unaffected.
+export type TAnalyticsTabKey = TAnalyticsTabsBase | "bd-insights";
 export type TAnalyticsGraphsBase = "projects" | "work-items" | "custom-work-items";
 export interface AnalyticsTab {
-  key: TAnalyticsTabsBase;
+  key: TAnalyticsTabKey;
   label: string;
   content: React.FC;
   isDisabled: boolean;
