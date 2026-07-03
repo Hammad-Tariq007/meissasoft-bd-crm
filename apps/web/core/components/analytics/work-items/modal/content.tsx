@@ -4,15 +4,16 @@
  * See the LICENSE file for details.
  */
 
-import React, { useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { observer } from "mobx-react";
-import { Tab } from "@headlessui/react";
 // plane package imports
+import { Tabs } from "@plane/propel/tabs";
 import type { ICycle, IModule, IProject } from "@plane/types";
 import { Spinner } from "@plane/ui";
 // hooks
 import { useAnalytics } from "@/hooks/store/use-analytics";
 // plane web components
+import { BDInsightsContent } from "../../bd-insights";
 import TotalInsights from "../../total-insights";
 import CreatedVsResolved from "../created-vs-resolved";
 import CustomizedInsights from "../customized-insights";
@@ -30,6 +31,7 @@ export const WorkItemsModalMainContent = observer(function WorkItemsModalMainCon
   const { projectDetails, cycleDetails, moduleDetails, fullScreen, isEpic } = props;
   const { updateSelectedProjects, updateSelectedCycle, updateSelectedModule, updateIsPeekView } = useAnalytics();
   const [isModalConfigured, setIsModalConfigured] = useState(false);
+  const [selectedTab, setSelectedTab] = useState("overview");
 
   useEffect(() => {
     updateIsPeekView(true);
@@ -75,13 +77,34 @@ export const WorkItemsModalMainContent = observer(function WorkItemsModalMainCon
     );
 
   return (
-    <Tab.Group as={React.Fragment}>
-      <div className="flex flex-col gap-14 overflow-y-auto p-6">
-        <TotalInsights analyticsType="work-items" peekView={!fullScreen} />
-        <CreatedVsResolved />
-        <CustomizedInsights peekView={!fullScreen} isEpic={isEpic} />
-        <WorkItemsInsightTable />
+    <Tabs
+      value={selectedTab}
+      onValueChange={(value) => value && setSelectedTab(value)}
+      className="flex h-full w-full flex-col overflow-hidden"
+    >
+      <div className="flex w-full items-center border-b border-subtle bg-surface-1 px-6 py-2">
+        <Tabs.List className="flex h-7 w-fit overflow-x-auto">
+          <Tabs.Trigger value="overview" size="md" className="h-6 px-3">
+            Overview
+          </Tabs.Trigger>
+          <Tabs.Trigger value="bd-insights" size="md" className="h-6 px-3">
+            BD Insights
+          </Tabs.Trigger>
+        </Tabs.List>
       </div>
-    </Tab.Group>
+      <Tabs.Content value="overview" className="h-full overflow-y-auto">
+        <div className="flex flex-col gap-14 p-6">
+          <TotalInsights analyticsType="work-items" peekView={!fullScreen} />
+          <CreatedVsResolved />
+          <CustomizedInsights peekView={!fullScreen} isEpic={isEpic} />
+          <WorkItemsInsightTable />
+        </div>
+      </Tabs.Content>
+      <Tabs.Content value="bd-insights" className="h-full overflow-y-auto">
+        <div className="flex flex-col gap-14 p-6">
+          <BDInsightsContent />
+        </div>
+      </Tabs.Content>
+    </Tabs>
   );
 });
