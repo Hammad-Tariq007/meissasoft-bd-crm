@@ -63,7 +63,10 @@ export const KanbanIssueBlocksList = observer(function KanbanIssueBlocksList(pro
       projectsWithFields.add(projectId);
     }
   });
-  const bulkKey = `${(issueIds ?? []).join(",")}|${[...projectsWithFields].toSorted().join(",")}`;
+  // Spread already copies the set, so the in-place sort is safe; toSorted() would
+  // need the es2023 lib target, which this project doesn't enable.
+  // eslint-disable-next-line unicorn/no-array-sort
+  const bulkKey = `${(issueIds ?? []).join(",")}|${[...projectsWithFields].sort().join(",")}`;
 
   useEffect(() => {
     const ws = workspaceSlug?.toString();
