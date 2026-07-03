@@ -31,7 +31,30 @@ def get_analytics_date_range(
 
     today = timezone.now().date()
 
-    if date_filter == "yesterday":
+    if date_filter == "today":
+        return {
+            "current": {
+                "gte": datetime.combine(today, datetime.min.time()),
+                "lte": datetime.combine(today, datetime.max.time()),
+            }
+        }
+    elif date_filter == "this_week":
+        week_start = today - timedelta(days=today.weekday())
+        return {
+            "current": {
+                "gte": datetime.combine(week_start, datetime.min.time()),
+                "lte": datetime.combine(today, datetime.max.time()),
+            }
+        }
+    elif date_filter == "this_month":
+        month_start = today.replace(day=1)
+        return {
+            "current": {
+                "gte": datetime.combine(month_start, datetime.min.time()),
+                "lte": datetime.combine(today, datetime.max.time()),
+            }
+        }
+    elif date_filter == "yesterday":
         yesterday = today - timedelta(days=1)
         return {
             "current": {
@@ -89,6 +112,8 @@ def get_analytics_date_range(
 
 def get_chart_period_range(
     date_filter: Optional[str] = None,
+    start_date: Optional[str] = None,
+    end_date: Optional[str] = None,
 ) -> Optional[Tuple[date, date]]:
     """
     Get date range for chart visualization.
@@ -96,11 +121,17 @@ def get_chart_period_range(
 
     Args:
         date_filter (str): The type of date filter to apply. Options are:
+            - "today": Today's date
+            - "this_week": Current week (Monday to today)
+            - "this_month": Current month (1st to today)
             - "yesterday": Yesterday's date
             - "last_7_days": Last 7 days
             - "last_30_days": Last 30 days
             - "last_3_months": Last 90 days
-            Defaults to "last_7_days" if not specified or invalid.
+            - "custom": Explicit start_date/end_date (YYYY-MM-DD)
+            Returns None (no range) if not specified or invalid.
+        start_date (str): Start date for a custom range (format: YYYY-MM-DD)
+        end_date (str): End date for a custom range (format: YYYY-MM-DD)
 
     Returns:
         tuple: A tuple containing (start_date, end_date) as date objects
@@ -109,7 +140,22 @@ def get_chart_period_range(
         return None
 
     today = timezone.now().date()
+
+    if date_filter == "custom":
+        if not (start_date and end_date):
+            return None
+        try:
+            return (
+                datetime.strptime(start_date, "%Y-%m-%d").date(),
+                datetime.strptime(end_date, "%Y-%m-%d").date(),
+            )
+        except (ValueError, TypeError):
+            return None
+
     period_ranges = {
+        "today": (today, today),
+        "this_week": (today - timedelta(days=today.weekday()), today),
+        "this_month": (today.replace(day=1), today),
         "yesterday": (
             today - timedelta(days=1),
             today - timedelta(days=1),
@@ -127,6 +173,8 @@ def get_analytics_filters(
     user: User,
     type: str,
     date_filter: Optional[str] = None,
+    start_date: Optional[str] = None,
+    end_date: Optional[str] = None,
     project_ids: Optional[Union[str, List[str]]] = None,
 ) -> Dict[str, Any]:
     """
@@ -179,9 +227,9 @@ def get_analytics_filters(
 
     # Get date range filters based on type
     if type == "analytics":
-        analytics_date_range = get_analytics_date_range(date_filter)
+        analytics_date_range = get_analytics_date_range(date_filter, start_date, end_date)
     elif type == "chart":
-        chart_period_range = get_chart_period_range(date_filter)
+        chart_period_range = get_chart_period_range(date_filter, start_date, end_date)
 
     return {
         "base_filters": base_filters,

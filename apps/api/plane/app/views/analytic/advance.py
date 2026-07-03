@@ -38,6 +38,8 @@ class AdvanceAnalyticsBaseView(BaseAPIView):
             type=type,
             user=self.request.user,
             date_filter=self.request.GET.get("date_filter", None),
+            start_date=self.request.GET.get("start_date", None),
+            end_date=self.request.GET.get("end_date", None),
             project_ids=self.request.GET.get("project_ids", None),
         )
 

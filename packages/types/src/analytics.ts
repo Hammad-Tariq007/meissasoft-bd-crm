@@ -49,6 +49,12 @@ export type TAnalyticsFilterParams = {
   project_ids?: string;
   cycle_id?: string;
   module_id?: string;
+  // Scope analytics to work items created within a range. `date_filter` is a
+  // preset key (e.g. "today", "last_30_days") or "custom"; for "custom",
+  // start_date/end_date carry the explicit YYYY-MM-DD bounds.
+  date_filter?: string;
+  start_date?: string;
+  end_date?: string;
 };
 
 // service types

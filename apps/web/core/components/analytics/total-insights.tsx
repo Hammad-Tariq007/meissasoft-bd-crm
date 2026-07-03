@@ -60,15 +60,25 @@ const TotalInsights = observer(function TotalInsights({
   const params = useParams();
   const workspaceSlug = params.workspaceSlug.toString();
   const { t } = useTranslation();
-  const { selectedDuration, selectedProjects, selectedCycle, selectedModule, isPeekView, isEpic } = useAnalytics();
+  const {
+    selectedDuration,
+    selectedStartDate,
+    selectedEndDate,
+    dateFilterParams,
+    selectedProjects,
+    selectedCycle,
+    selectedModule,
+    isPeekView,
+    isEpic,
+  } = useAnalytics();
   const { data: totalInsightsData, isLoading } = useSWR(
-    `total-insights-${analyticsType}-${selectedDuration}-${selectedProjects}-${selectedCycle}-${selectedModule}-${isEpic}`,
+    `total-insights-${analyticsType}-${selectedDuration}-${selectedStartDate}-${selectedEndDate}-${selectedProjects}-${selectedCycle}-${selectedModule}-${isEpic}`,
     () =>
       analyticsService.getAdvanceAnalytics<IAnalyticsResponse>(
         workspaceSlug,
         analyticsType,
         {
-          // date_filter: selectedDuration,
+          ...dateFilterParams,
           ...(selectedProjects?.length > 0 ? { project_ids: selectedProjects.join(",") } : {}),
           ...(selectedCycle ? { cycle_id: selectedCycle } : {}),
           ...(selectedModule ? { module_id: selectedModule } : {}),
