@@ -193,6 +193,40 @@ def resolve_axis_field(
     raise ValidationError(f"Invalid dimension: {axis}")
 
 
+def build_leads_wins_by_field(
+    queryset: QuerySet[Issue],
+    field_id: uuid.UUID,
+) -> List[Dict[str, Any]]:
+    """Leads and wins bucketed by a single-select custom field's option value.
+
+    Reuses the same FilteredRelation join as the CUSTOM_FIELD grouping path so
+    issues with no value for the field fall into a "None" bucket. "wins" counts
+    only issues whose state is in the completed group; both counts are distinct
+    so a multi-value/relation join can never inflate them.
+    """
+    alias = "cf_by_field"
+    data = (
+        queryset.annotate(
+            **{alias: FilteredRelation("custom_field_values", condition=Q(custom_field_values__field_id=field_id))}
+        )
+        .values(f"{alias}__value_option_id", f"{alias}__value_option__name")
+        .annotate(
+            leads=Count("id", distinct=True),
+            wins=Count("id", filter=Q(state__group="completed"), distinct=True),
+        )
+        .order_by("-leads")
+    )
+    return [
+        {
+            "key": str(item[f"{alias}__value_option_id"]) if item[f"{alias}__value_option_id"] else "none",
+            "name": item[f"{alias}__value_option__name"] or "None",
+            "leads": item["leads"],
+            "wins": item["wins"],
+        }
+        for item in data
+    ]
+
+
 def build_analytics_chart(
     queryset: QuerySet[Issue],
     x_axis: str,

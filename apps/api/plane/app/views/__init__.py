@@ -223,6 +223,10 @@ from .analytic.project_analytics import (
     ProjectAdvanceAnalyticsChartEndpoint,
 )
 
+from .analytic.bd_insights import (
+    BDInsightsEndpoint,
+)
+
 from .notification.base import (
     NotificationViewSet,
     UnreadNotificationEndpoint,
