@@ -12,4 +12,5 @@ export * from "./options/option-list";
 export * from "./options/create-update-option-inline";
 export * from "./work-item/root";
 export * from "./work-item/field-control";
+export * from "./work-item/board-property-pills";
 export * from "./utils";

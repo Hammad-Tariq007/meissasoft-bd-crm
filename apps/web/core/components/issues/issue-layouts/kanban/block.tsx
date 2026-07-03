@@ -22,6 +22,7 @@ import { EIssueServiceType } from "@plane/types";
 import { ControlLink, DropIndicator } from "@plane/ui";
 import { cn, generateWorkItemLink } from "@plane/utils";
 // components
+import { WorkItemCustomFieldPills } from "@/components/custom-fields";
 import RenderIfVisible from "@/components/core/render-if-visible-HOC";
 import { HIGHLIGHT_CLASS, getIssueBlockId } from "@/components/issues/issue-layouts/utils";
 // helpers
@@ -139,6 +140,10 @@ const KanbanIssueDetailsBlock = observer(function KanbanIssueDetailsBlock(props:
         isReadOnly={isReadOnly}
         isEpic={isEpic}
       />
+
+      <div className="flex flex-wrap items-center gap-1.5 empty:hidden">
+        <WorkItemCustomFieldPills issueId={issue.id} projectId={issue.project_id} />
+      </div>
 
       {isEpic && displayProperties && (
         <WithDisplayPropertiesHOC
