@@ -31,6 +31,7 @@ import { useProject } from "@/hooks/store/use-project";
 import useIssuePeekOverviewRedirection from "@/hooks/use-issue-peek-overview-redirection";
 import type { TSelectionHelper } from "@/hooks/use-multiple-select";
 import { usePlatformOS } from "@/hooks/use-platform-os";
+import { useWorkItemPermissions } from "@/hooks/use-work-item-editable";
 // plane web components
 import { IssueIdentifier } from "@/plane-web/components/issues/issue-details/issue-identifier";
 // local components
@@ -242,7 +243,13 @@ const IssueRowDetails = observer(function IssueRowDetails(props: IssueRowDetails
     }
   };
 
-  const disableUserActions = !canEditProperties(issueDetail.project_id ?? undefined);
+  // Ownership gate: only the assigned BD or an admin may inline-edit this lead.
+  const { isEditable: isWorkItemEditable } = useWorkItemPermissions(
+    workspaceSlug?.toString(),
+    issueDetail.project_id,
+    issueDetail.assignee_ids
+  );
+  const disableUserActions = !canEditProperties(issueDetail.project_id ?? undefined) || !isWorkItemEditable;
   const subIssuesCount = issueDetail?.sub_issues_count ?? 0;
   const isIssueSelected = selectionHelpers.getIsEntitySelected(issueDetail.id);
   const projectIdentifier = getProjectIdentifierById(issueDetail.project_id);

@@ -29,6 +29,7 @@ import { useIssueDetail } from "@/hooks/store/use-issue-detail";
 import { useProject } from "@/hooks/store/use-project";
 import type { TSelectionHelper } from "@/hooks/use-multiple-select";
 import { usePlatformOS } from "@/hooks/use-platform-os";
+import { useWorkItemPermissions } from "@/hooks/use-work-item-editable";
 // plane web components
 import { IssueIdentifier } from "@/plane-web/components/issues/issue-details/issue-identifier";
 import { IssueStats } from "@/plane-web/components/issues/issue-layouts/issue-stats";
@@ -108,7 +109,13 @@ export const IssueBlock = observer(function IssueBlock(props: IssueBlockProps) {
   // derived values
   const issue = issuesMap[issueId];
   const subIssuesCount = issue?.sub_issues_count ?? 0;
-  const canEditIssueProperties = canEditProperties(issue?.project_id ?? undefined);
+  // Ownership gate: only the assigned BD or an admin may edit this lead.
+  const { isEditable: isWorkItemEditable } = useWorkItemPermissions(
+    workspaceSlug,
+    issue?.project_id,
+    issue?.assignee_ids
+  );
+  const canEditIssueProperties = canEditProperties(issue?.project_id ?? undefined) && isWorkItemEditable;
   const isDraggingAllowed = canDrag && canEditIssueProperties;
 
   const { isMobile } = usePlatformOS();

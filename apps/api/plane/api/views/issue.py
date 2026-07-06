@@ -63,11 +63,14 @@ from plane.app.permissions import (
     ProjectEntityPermission,
     ProjectLitePermission,
     ProjectMemberPermission,
+    ProjectIssueEditPermission,
 )
+from plane.app.permissions import is_project_admin, is_issue_assignee
 from plane.bgtasks.issue_activities_task import issue_activity
 from plane.db.models import (
     Issue,
     IssueActivity,
+    IssueAssignee,
     FileAsset,
     IssueComment,
     IssueLink,
@@ -499,7 +502,7 @@ class IssueDetailAPIEndpoint(BaseAPIView):
 
     model = Issue
     webhook_event = "issue"
-    permission_classes = [ProjectEntityPermission]
+    permission_classes = [ProjectIssueEditPermission]
     serializer_class = IssueSerializer
     use_read_replica = True
 
@@ -521,6 +524,28 @@ class IssueDetailAPIEndpoint(BaseAPIView):
             .prefetch_related("labels")
             .order_by(self.kwargs.get("order_by", "-created_at"))
         ).distinct()
+
+    def _reassignment_blocked(self, request, slug, project_id, issue):
+        """
+        Reassignment is admin-only. Returns a 403 Response if a non-admin is
+        trying to *change* the assignee; returns None otherwise (including when
+        assignee_ids is absent or unchanged).
+        """
+        if "assignee_ids" not in request.data:
+            return None
+        requested = {str(a) for a in (request.data.get("assignee_ids") or [])}
+        current = {
+            str(a)
+            for a in IssueAssignee.objects.filter(
+                issue=issue, deleted_at__isnull=True
+            ).values_list("assignee_id", flat=True)
+        }
+        if requested != current and not is_project_admin(request.user, slug, project_id):
+            return Response(
+                {"error": "Only admins can reassign a work item."},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+        return None
 
     @work_item_docs(
         operation_id="retrieve_work_item",
@@ -608,6 +633,21 @@ class IssueDetailAPIEndpoint(BaseAPIView):
                     external_id=external_id,
                     external_source=external_source,
                 )
+
+                # Editing an existing lead is limited to admins and the current
+                # assignee; reassignment is admin-only. (This PUT carries no pk,
+                # so ownership can't be resolved by the permission class.)
+                if not (
+                    is_project_admin(request.user, slug, project_id)
+                    or is_issue_assignee(request.user, issue.id)
+                ):
+                    return Response(
+                        {"error": "You don't have permission to edit this work item."},
+                        status=status.HTTP_403_FORBIDDEN,
+                    )
+                blocked = self._reassignment_blocked(request, slug, project_id, issue)
+                if blocked:
+                    return blocked
 
                 # Get the current instance of the issue in order to track
                 # changes and dispatch the issue activity
@@ -743,6 +783,11 @@ class IssueDetailAPIEndpoint(BaseAPIView):
         Supports external ID validation to prevent conflicts.
         """
         issue = Issue.objects.get(workspace__slug=slug, project_id=project_id, pk=pk)
+        # Reassignment is admin-only (edit access itself is gated by the
+        # permission class to admins and the current assignee).
+        blocked = self._reassignment_blocked(request, slug, project_id, issue)
+        if blocked:
+            return blocked
         project = Project.objects.get(pk=project_id)
         current_instance = json.dumps(IssueSerializer(issue).data, cls=DjangoJSONEncoder)
         requested_data = json.dumps(self.request.data, cls=DjangoJSONEncoder)
@@ -814,17 +859,12 @@ class IssueDetailAPIEndpoint(BaseAPIView):
         Only admins or the item creator can perform this action.
         """
         issue = Issue.objects.get(workspace__slug=slug, project_id=project_id, pk=pk)
-        if issue.created_by_id != request.user.id and (
-            not ProjectMember.objects.filter(
-                workspace__slug=slug,
-                member=request.user,
-                role=20,
-                project_id=project_id,
-                is_active=True,
-            ).exists()
+        if not (
+            is_project_admin(request.user, slug, project_id)
+            or is_issue_assignee(request.user, issue.id)
         ):
             return Response(
-                {"error": "Only admin or creator can delete the work item"},
+                {"error": "Only an admin or the assignee can delete the work item"},
                 status=status.HTTP_403_FORBIDDEN,
             )
         current_instance = json.dumps(IssueSerializer(issue).data, cls=DjangoJSONEncoder)
@@ -1081,7 +1121,7 @@ class IssueLinkListCreateAPIEndpoint(BaseAPIView):
 
     serializer_class = IssueLinkSerializer
     model = IssueLink
-    permission_classes = [ProjectEntityPermission]
+    permission_classes = [ProjectIssueEditPermission]
     use_read_replica = True
 
     def get_queryset(self):
@@ -1183,7 +1223,7 @@ class IssueLinkListCreateAPIEndpoint(BaseAPIView):
 class IssueLinkDetailAPIEndpoint(BaseAPIView):
     """Issue Link Detail Endpoint"""
 
-    permission_classes = [ProjectEntityPermission]
+    permission_classes = [ProjectIssueEditPermission]
 
     model = IssueLink
     serializer_class = IssueLinkSerializer
@@ -2266,7 +2306,7 @@ class IssueRelationListCreateAPIEndpoint(BaseAPIView):
 
     serializer_class = IssueRelationSerializer
     model = IssueRelation
-    permission_classes = [ProjectEntityPermission]
+    permission_classes = [ProjectIssueEditPermission]
     use_read_replica = True
 
     @work_item_relation_docs(

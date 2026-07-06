@@ -32,6 +32,7 @@ import { useKanbanView } from "@/hooks/store/use-kanban-view";
 import { useProject } from "@/hooks/store/use-project";
 import useIssuePeekOverviewRedirection from "@/hooks/use-issue-peek-overview-redirection";
 import { usePlatformOS } from "@/hooks/use-platform-os";
+import { useWorkItemPermissions } from "@/hooks/use-work-item-editable";
 // plane web components
 import { IssueIdentifier } from "@/plane-web/components/issues/issue-details/issue-identifier";
 // local components
@@ -195,7 +196,14 @@ export const KanbanIssueBlock = observer(function KanbanIssueBlock(props: IssueB
   const [isDraggingOverBlock, setIsDraggingOverBlock] = useState(false);
   const [isCurrentBlockDragging, setIsCurrentBlockDragging] = useState(false);
 
-  const canEditIssueProperties = canEditProperties(issue?.project_id ?? undefined);
+  // Ownership gate: only the assigned BD or an admin may edit (and therefore
+  // drag-to-change-state) this lead; everyone else sees it read-only.
+  const { isEditable: isWorkItemEditable } = useWorkItemPermissions(
+    workspaceSlug,
+    issue?.project_id,
+    issue?.assignee_ids
+  );
+  const canEditIssueProperties = canEditProperties(issue?.project_id ?? undefined) && isWorkItemEditable;
 
   const isDragAllowed = canDragIssuesInCurrentGrouping && !issue?.tempId && canEditIssueProperties;
   const projectIdentifier = getProjectIdentifierById(issue?.project_id);

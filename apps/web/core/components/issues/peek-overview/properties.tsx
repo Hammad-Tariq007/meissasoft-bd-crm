@@ -34,11 +34,13 @@ interface IPeekOverviewProperties {
   projectId: string;
   issueId: string;
   disabled: boolean;
+  /** Reassignment (changing the assignee) is admin-only; disables the BD dropdown. */
+  disableReassignment?: boolean;
   issueOperations: TIssueOperations;
 }
 
 export const PeekOverviewProperties = observer(function PeekOverviewProperties(props: IPeekOverviewProperties) {
-  const { workspaceSlug, projectId, issueId, issueOperations, disabled } = props;
+  const { workspaceSlug, projectId, issueId, issueOperations, disabled, disableReassignment = disabled } = props;
   const { t } = useTranslation();
   // store hooks
   const { getProjectById } = useProject();
@@ -74,7 +76,7 @@ export const PeekOverviewProperties = observer(function PeekOverviewProperties(p
           <MemberDropdown
             value={issue?.assignee_ids ?? undefined}
             onChange={(val) => issueOperations.update(workspaceSlug, projectId, issueId, { assignee_ids: val })}
-            disabled={disabled}
+            disabled={disableReassignment}
             projectId={projectId}
             placeholder={t("issue.add.assignee")}
             multiple

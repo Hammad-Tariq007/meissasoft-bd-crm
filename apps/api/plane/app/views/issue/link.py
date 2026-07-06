@@ -16,7 +16,7 @@ from rest_framework import status
 # Module imports
 from .. import BaseViewSet
 from plane.app.serializers import IssueLinkSerializer
-from plane.app.permissions import ProjectEntityPermission
+from plane.app.permissions import ProjectIssueEditPermission
 from plane.db.models import IssueLink
 from plane.bgtasks.issue_activities_task import issue_activity
 from plane.bgtasks.work_item_link_task import crawl_work_item_link_title
@@ -24,7 +24,7 @@ from plane.utils.host import base_host
 
 
 class IssueLinkViewSet(BaseViewSet):
-    permission_classes = [ProjectEntityPermission]
+    permission_classes = [ProjectIssueEditPermission]
 
     model = IssueLink
     serializer_class = IssueLinkSerializer

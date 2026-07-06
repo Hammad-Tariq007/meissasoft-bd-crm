@@ -35,6 +35,8 @@ interface IIssueView {
   isError?: boolean;
   is_archived: boolean;
   disabled?: boolean;
+  /** Reassignment (changing the assignee) is admin-only; disables the BD dropdown. */
+  disableReassignment?: boolean;
   embedIssue?: boolean;
   embedRemoveCurrentNotification?: () => void;
   issueOperations: TIssueOperations;
@@ -49,6 +51,7 @@ export const IssueView = observer(function IssueView(props: IIssueView) {
     isError,
     is_archived,
     disabled = false,
+    disableReassignment = false,
     embedIssue = false,
     embedRemoveCurrentNotification,
     issueOperations,
@@ -203,6 +206,7 @@ export const IssueView = observer(function IssueView(props: IIssueView) {
                       issueId={issueId}
                       issueOperations={issueOperations}
                       disabled={disabled || is_archived}
+                      disableReassignment={disableReassignment || is_archived}
                     />
 
                     <IssueActivity
@@ -257,6 +261,7 @@ export const IssueView = observer(function IssueView(props: IIssueView) {
                         issueId={issueId}
                         issueOperations={issueOperations}
                         disabled={disabled || is_archived}
+                        disableReassignment={disableReassignment || is_archived}
                       />
                     </div>
                   </div>

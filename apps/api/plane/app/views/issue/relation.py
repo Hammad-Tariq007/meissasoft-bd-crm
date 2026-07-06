@@ -20,7 +20,7 @@ from rest_framework import status
 # Module imports
 from .. import BaseViewSet
 from plane.app.serializers import IssueRelationSerializer, RelatedIssueSerializer
-from plane.app.permissions import ProjectEntityPermission
+from plane.app.permissions import ProjectIssueEditPermission
 from plane.db.models import (
     Project,
     IssueRelation,
@@ -37,7 +37,7 @@ from plane.utils.host import base_host
 class IssueRelationViewSet(BaseViewSet):
     serializer_class = IssueRelationSerializer
     model = IssueRelation
-    permission_classes = [ProjectEntityPermission]
+    permission_classes = [ProjectIssueEditPermission]
 
     def list(self, request, slug, project_id, issue_id):
         issue_relations = (

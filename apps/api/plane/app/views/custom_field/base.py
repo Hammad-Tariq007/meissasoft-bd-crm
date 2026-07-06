@@ -237,7 +237,7 @@ class CustomFieldValueViewSet(BaseViewSet):
             status=status.HTTP_200_OK,
         )
 
-    @allow_permission([ROLE.ADMIN, ROLE.MEMBER])
+    @allow_permission([ROLE.ADMIN], assignee=True)
     def create(self, request, slug, project_id, issue_id):
         """Upsert a single field's value on this work item (one row per field+issue)."""
         field_id = request.data.get("field")
@@ -329,7 +329,7 @@ class CustomFieldValueViewSet(BaseViewSet):
         obj = self.get_queryset().get(pk=obj.pk)
         return Response(CustomFieldValueSerializer(obj).data, status=status.HTTP_200_OK)
 
-    @allow_permission([ROLE.ADMIN, ROLE.MEMBER])
+    @allow_permission([ROLE.ADMIN], assignee=True)
     def clear(self, request, slug, project_id, issue_id, field_id):
         """Remove this work item's value for the given field."""
         field = CustomFieldDefinition.objects.get(pk=field_id, project_id=project_id, workspace__slug=slug)

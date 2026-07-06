@@ -9,7 +9,6 @@ import { observer } from "mobx-react";
 import { usePathname } from "next/navigation";
 // Plane imports
 import useSWR from "swr";
-import { EUserPermissions, EUserPermissionsLevel } from "@plane/constants";
 import { useTranslation } from "@plane/i18n";
 import { TOAST_TYPE, setPromiseToast, setToast } from "@plane/propel/toast";
 import type { IWorkItemPeekOverview, TIssue } from "@plane/types";
@@ -17,8 +16,8 @@ import { EIssueServiceType, EIssuesStoreType } from "@plane/types";
 // hooks
 import { useIssueDetail } from "@/hooks/store/use-issue-detail";
 import { useIssues } from "@/hooks/store/use-issues";
-import { useUserPermissions } from "@/hooks/store/user";
 import { useIssueStoreType } from "@/hooks/use-issue-layout-store";
+import { useWorkItemPermissions } from "@/hooks/use-work-item-editable";
 import { useWorkItemProperties } from "@/plane-web/hooks/use-issue-properties";
 // local imports
 import type { TIssueOperations } from "../issue-detail";
@@ -34,8 +33,6 @@ export const IssuePeekOverview = observer(function IssuePeekOverview(props: IWor
   const { t } = useTranslation();
   // router
   const pathname = usePathname();
-  // store hook
-  const { allowPermissions } = useUserPermissions();
 
   const {
     issues: { restoreIssue },
@@ -43,12 +40,21 @@ export const IssuePeekOverview = observer(function IssuePeekOverview(props: IWor
   const {
     peekIssue,
     setPeekIssue,
-    issue: { fetchIssue },
+    issue: { fetchIssue, getIssueById },
     fetchActivities,
   } = useIssueDetail();
   const issueStoreType = useIssueStoreType();
   const storeType = issueStoreFromProps ?? issueStoreType;
   const { issues } = useIssues(storeType);
+  // Ownership-based edit permissions: the assigned BD and admins can edit; the
+  // assignee dropdown (reassignment) is admin-only. Computed here (before any
+  // early return) so the hook order stays stable.
+  const peekWorkItem = peekIssue?.issueId ? getIssueById(peekIssue.issueId) : undefined;
+  const { isEditable, canReassign } = useWorkItemPermissions(
+    peekIssue?.workspaceSlug,
+    peekIssue?.projectId,
+    peekWorkItem?.assignee_ids
+  );
 
   useWorkItemProperties(
     peekIssue?.projectId,
@@ -227,14 +233,6 @@ export const IssuePeekOverview = observer(function IssuePeekOverview(props: IWor
 
   if (!peekIssue?.workspaceSlug || !peekIssue?.projectId || !peekIssue?.issueId) return <></>;
 
-  // Check if issue is editable, based on user role
-  const isEditable = allowPermissions(
-    [EUserPermissions.ADMIN, EUserPermissions.MEMBER],
-    EUserPermissionsLevel.PROJECT,
-    peekIssue?.workspaceSlug,
-    peekIssue?.projectId
-  );
-
   return (
     <IssueView
       workspaceSlug={peekIssue.workspaceSlug}
@@ -244,6 +242,7 @@ export const IssuePeekOverview = observer(function IssuePeekOverview(props: IWor
       isError={error}
       is_archived={!!peekIssue.isArchived}
       disabled={!isEditable}
+      disableReassignment={!canReassign}
       embedIssue={embedIssue}
       embedRemoveCurrentNotification={embedRemoveCurrentNotification}
       issueOperations={issueOperations}

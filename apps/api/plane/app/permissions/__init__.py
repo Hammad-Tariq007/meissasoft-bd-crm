@@ -16,6 +16,13 @@ from .project import (
     ProjectMemberPermission,
     ProjectLitePermission,
     ProjectAdminPermission,
+    ProjectIssueEditPermission,
 )
-from .base import allow_permission, ROLE
+from .base import (
+    allow_permission,
+    ROLE,
+    is_project_admin,
+    is_issue_assignee,
+    can_edit_all_issues,
+)
 from .page import ProjectPagePermission

@@ -8,6 +8,7 @@ from rest_framework.permissions import SAFE_METHODS, BasePermission
 # Module import
 from plane.db.models import ProjectMember, WorkspaceMember
 from plane.db.models.project import ROLE
+from .base import is_project_admin, is_issue_assignee
 
 
 class ProjectBasePermission(BasePermission):
@@ -141,3 +142,45 @@ class ProjectLitePermission(BasePermission):
             project_id=view.project_id,
             is_active=True,
         ).exists()
+
+
+class ProjectIssueEditPermission(BasePermission):
+    """
+    Ownership-based edit gate for work items (leads) and their sub-resources.
+
+    - Safe methods: any active project member may read.
+    - Write methods: project admins always; otherwise only the work item's
+      assignee. The work item id is read from `issue_id` (sub-resources) or
+      `pk` (issue detail). When neither is present (e.g. the external
+      upsert-by-external-id PUT), any active project member passes here and the
+      view enforces ownership inline after resolving the target issue.
+    """
+
+    def has_permission(self, request, view):
+        if request.user.is_anonymous:
+            return False
+
+        slug = view.workspace_slug
+        project_id = view.project_id
+
+        is_member = ProjectMember.objects.filter(
+            workspace__slug=slug,
+            member=request.user,
+            project_id=project_id,
+            is_active=True,
+        ).exists()
+        if not is_member:
+            return False
+
+        if request.method in SAFE_METHODS:
+            return True
+
+        if is_project_admin(request.user, slug, project_id):
+            return True
+
+        issue_id = view.kwargs.get("issue_id") or view.kwargs.get("pk")
+        # No id in the route: ownership is enforced inline by the view.
+        if issue_id is None:
+            return True
+
+        return is_issue_assignee(request.user, issue_id)

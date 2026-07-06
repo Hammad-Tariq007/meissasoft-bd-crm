@@ -2,7 +2,7 @@
 # SPDX-License-Identifier: AGPL-3.0-only
 # See the LICENSE file for details.
 
-from plane.db.models import WorkspaceMember, ProjectMember
+from plane.db.models import WorkspaceMember, ProjectMember, IssueAssignee
 from functools import wraps
 from rest_framework.response import Response
 from rest_framework import status
@@ -16,7 +16,55 @@ class ROLE(Enum):
     GUEST = 5
 
 
-def allow_permission(allowed_roles, level="PROJECT", creator=False, model=None):
+def is_project_admin(user, slug, project_id):
+    """A project admin, or a workspace admin who belongs to the project."""
+    if ProjectMember.objects.filter(
+        member=user,
+        workspace__slug=slug,
+        project_id=project_id,
+        role=ROLE.ADMIN.value,
+        is_active=True,
+    ).exists():
+        return True
+    return (
+        ProjectMember.objects.filter(
+            member=user, workspace__slug=slug, project_id=project_id, is_active=True
+        ).exists()
+        and WorkspaceMember.objects.filter(
+            member=user, workspace__slug=slug, role=ROLE.ADMIN.value, is_active=True
+        ).exists()
+    )
+
+
+def is_issue_assignee(user, issue_id):
+    """True if the user is currently assigned to the given work item (lead)."""
+    if not issue_id:
+        return False
+    return IssueAssignee.objects.filter(
+        issue_id=issue_id, assignee=user, deleted_at__isnull=True
+    ).exists()
+
+
+def can_edit_all_issues(user, slug, project_id, issue_ids):
+    """
+    True if the user may edit every work item in issue_ids — i.e. they are a
+    project admin, or the assignee of each one. Used by list-body endpoints
+    (cycle/module assignment) that the per-request assignee decorator can't cover.
+    """
+    if is_project_admin(user, slug, project_id):
+        return True
+    if not issue_ids:
+        return True
+    assigned = set(
+        str(i)
+        for i in IssueAssignee.objects.filter(
+            issue_id__in=issue_ids, assignee=user, deleted_at__isnull=True
+        ).values_list("issue_id", flat=True)
+    )
+    return all(str(i) in assigned for i in issue_ids)
+
+
+def allow_permission(allowed_roles, level="PROJECT", creator=False, model=None, assignee=False):
     def decorator(view_func):
         @wraps(view_func)
         def _wrapped_view(instance, request, *args, **kwargs):
@@ -35,6 +83,23 @@ def allow_permission(allowed_roles, level="PROJECT", creator=False, model=None):
 
                 obj = model.objects.filter(id=kwargs["pk"], created_by=request.user).exists()
                 if obj:
+                    return view_func(instance, request, *args, **kwargs)
+
+            # Check for the work item assignee (lead owner) if required. The
+            # issue id lives in `pk` on the issue detail routes and in `issue_id`
+            # on sub-resource routes (custom fields, links, ...). This lets the
+            # assigned BD through; admins still pass via the role check below.
+            if assignee:
+                issue_id = kwargs.get("pk") or kwargs.get("issue_id")
+                if (
+                    issue_id
+                    and WorkspaceMember.objects.filter(
+                        member=request.user,
+                        workspace__slug=kwargs["slug"],
+                        is_active=True,
+                    ).exists()
+                    and is_issue_assignee(request.user, issue_id)
+                ):
                     return view_func(instance, request, *args, **kwargs)
 
             # Convert allowed_roles to their values if they are enum members
