@@ -23,6 +23,11 @@ export type TFiltersRowProps<K extends TFilterProperty, E extends TExternalFilte
   disabledAllOperations?: boolean;
   filter: IFilterInstance<K, E>;
   variant?: "modal" | "header";
+  /** Optional element pinned to the left of the row (e.g. a date-range preset control). */
+  leadingContent?: React.ReactNode;
+  /** Filter properties whose chips are hidden from the row (they still apply) — e.g. a property
+   * that is driven by a dedicated control in `leadingContent`, so its chip would be redundant. */
+  hiddenProperties?: K[];
   trackerElements?: {
     clearFilter?: string;
     saveView?: string;
@@ -38,6 +43,8 @@ export const FiltersRow = observer(function FiltersRow<K extends TFilterProperty
     disabledAllOperations: disabledAllOperationsProp = false,
     filter,
     variant = "header",
+    leadingContent,
+    hiddenProperties,
     trackerElements,
   } = props;
   // states
@@ -65,9 +72,13 @@ export const FiltersRow = observer(function FiltersRow<K extends TFilterProperty
     }
   }, [filter]);
 
+  const visibleConditions = hiddenProperties?.length
+    ? filter.allConditionsForDisplay.filter((condition) => !hiddenProperties.includes(condition.property))
+    : filter.allConditionsForDisplay;
+
   const leftContent = (
     <>
-      {filter.allConditionsForDisplay.map((condition) => (
+      {visibleConditions.map((condition) => (
         <FilterItem key={condition.id} filter={filter} condition={condition} isDisabled={disabledAllOperations} />
       ))}
       <AddFilterButton
@@ -125,7 +136,8 @@ export const FiltersRow = observer(function FiltersRow<K extends TFilterProperty
   );
 
   const mainContent = (
-    <div className="flex w-full items-start gap-2 rounded-lg bg-layer-1 px-4 py-2">
+    <div className="flex w-full items-center gap-2 rounded-lg bg-layer-1 px-4 py-2">
+      {leadingContent && <div className="flex shrink-0 items-center border-r border-subtle pr-2">{leadingContent}</div>}
       <div className="flex w-full flex-wrap items-center gap-2">{leftContent}</div>
       <div
         className={cn("flex items-center gap-2 border-l border-subtle pl-4", {

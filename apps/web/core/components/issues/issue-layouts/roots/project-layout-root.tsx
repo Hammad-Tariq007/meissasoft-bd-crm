@@ -82,26 +82,27 @@ export const ProjectLayoutRoot = observer(function ProjectLayoutRoot() {
         updateFilters={issuesFilter?.updateFilterExpression.bind(issuesFilter, workspaceSlug, projectId)}
         projectId={projectId}
         workspaceSlug={workspaceSlug}
+        showOnMount
       >
         {({ filter: projectWorkItemsFilter }) => (
           <div className="relative flex h-full w-full flex-col overflow-hidden">
             {projectWorkItemsFilter && (
-              <>
-                <div className="flex items-center gap-2 px-page-x py-2">
+              <WorkItemFiltersRow
+                filter={projectWorkItemsFilter}
+                leadingContent={
                   <LeadDateRangeFilter
                     filter={projectWorkItemsFilter}
                     workspaceSlug={workspaceSlug}
                     projectId={projectId}
                     userId={userId}
                   />
-                </div>
-                <WorkItemFiltersRow
-                  filter={projectWorkItemsFilter}
-                  trackerElements={{
-                    saveView: PROJECT_VIEW_TRACKER_ELEMENTS.PROJECT_HEADER_SAVE_AS_VIEW_BUTTON,
-                  }}
-                />
-              </>
+                }
+                // created_at is driven by the date-range pill (leadingContent); its chip would be redundant
+                hiddenProperties={["created_at"]}
+                trackerElements={{
+                  saveView: PROJECT_VIEW_TRACKER_ELEMENTS.PROJECT_HEADER_SAVE_AS_VIEW_BUTTON,
+                }}
+              />
             )}
             <div className="relative h-full w-full overflow-auto bg-surface-1">
               {/* mutation loader */}
