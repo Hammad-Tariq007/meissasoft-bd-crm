@@ -27,6 +27,7 @@ import { IssueFilterHelperStore } from "../helpers/issue-filter-helper.store";
 // helpers
 // types
 import type { IIssueRootStore } from "../root.store";
+import { applyLeadDateDefault } from "@/lib/lead-date-preset-storage";
 import { ProjectService } from "@/services/project";
 // constants
 // services
@@ -137,7 +138,16 @@ export class ProjectIssuesFilter extends IssueFilterHelperStore implements IProj
   fetchFilters = async (workspaceSlug: string, projectId: string) => {
     const _filters = await this.projectService.getProjectUserProperties(workspaceSlug, projectId);
 
-    const richFilters = _filters?.rich_filters;
+    // Seed the leads date-range default into rich filters BEFORE the store is populated, so the
+    // very first value the layout's mount fetch and the filter instance observe already carries the
+    // created_at range. Applying it after the store is set would lose the race (the layout's init
+    // fetch is a mount effect not keyed on filters, and the instance is created once).
+    const richFilters = applyLeadDateDefault(
+      workspaceSlug,
+      projectId,
+      this.rootIssueStore.currentUserId,
+      _filters?.rich_filters
+    );
     const displayFilters = this.computedDisplayFilters(_filters?.display_filters);
     const displayProperties = this.computedDisplayProperties(_filters?.display_properties);
 

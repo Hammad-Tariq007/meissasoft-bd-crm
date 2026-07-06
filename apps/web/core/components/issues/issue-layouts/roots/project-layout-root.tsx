@@ -16,6 +16,7 @@ import { ProjectLevelWorkItemFiltersHOC } from "@/components/work-item-filters/f
 import { WorkItemFiltersRow } from "@/components/work-item-filters/filters-row";
 // hooks
 import { useIssues } from "@/hooks/store/use-issues";
+import { useUser } from "@/hooks/store/user";
 import { IssuesStoreContext } from "@/hooks/use-issue-layout-store";
 // local imports
 import { IssuePeekOverview } from "../../peek-overview";
@@ -24,6 +25,7 @@ import { BaseGanttRoot } from "../gantt";
 import { KanBanLayout } from "../kanban/roots/project-root";
 import { ListLayout } from "../list/roots/project-root";
 import { ProjectSpreadsheetLayout } from "../spreadsheet/roots/project-root";
+import { LeadDateRangeFilter } from "./lead-date-range-filter";
 
 function ProjectIssueLayout(props: { activeLayout: EIssueLayoutTypes | undefined }) {
   switch (props.activeLayout) {
@@ -49,13 +51,18 @@ export const ProjectLayoutRoot = observer(function ProjectLayoutRoot() {
   const projectId = routerProjectId ? routerProjectId.toString() : undefined;
   // hooks
   const { issues, issuesFilter } = useIssues(EIssuesStoreType.PROJECT);
+  const { data: currentUser } = useUser();
   // derived values
+  const userId = currentUser?.id;
   const workItemFilters = projectId ? issuesFilter?.getIssueFilters(projectId) : undefined;
   const activeLayout = workItemFilters?.displayFilters?.layout;
 
   useSWR(
     workspaceSlug && projectId ? `PROJECT_ISSUES_${workspaceSlug}_${projectId}` : null,
     async () => {
+      // fetchFilters seeds the leads date-range default (This Month by default) into rich filters
+      // before the store is populated — see applyLeadDateDefault — so the layouts' single init
+      // fetch already carries the created_at range.
       if (workspaceSlug && projectId) {
         await issuesFilter?.fetchFilters(workspaceSlug, projectId);
       }
@@ -79,12 +86,22 @@ export const ProjectLayoutRoot = observer(function ProjectLayoutRoot() {
         {({ filter: projectWorkItemsFilter }) => (
           <div className="relative flex h-full w-full flex-col overflow-hidden">
             {projectWorkItemsFilter && (
-              <WorkItemFiltersRow
-                filter={projectWorkItemsFilter}
-                trackerElements={{
-                  saveView: PROJECT_VIEW_TRACKER_ELEMENTS.PROJECT_HEADER_SAVE_AS_VIEW_BUTTON,
-                }}
-              />
+              <>
+                <div className="flex items-center gap-2 px-page-x py-2">
+                  <LeadDateRangeFilter
+                    filter={projectWorkItemsFilter}
+                    workspaceSlug={workspaceSlug}
+                    projectId={projectId}
+                    userId={userId}
+                  />
+                </div>
+                <WorkItemFiltersRow
+                  filter={projectWorkItemsFilter}
+                  trackerElements={{
+                    saveView: PROJECT_VIEW_TRACKER_ELEMENTS.PROJECT_HEADER_SAVE_AS_VIEW_BUTTON,
+                  }}
+                />
+              </>
             )}
             <div className="relative h-full w-full overflow-auto bg-surface-1">
               {/* mutation loader */}
