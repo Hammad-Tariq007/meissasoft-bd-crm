@@ -26,6 +26,7 @@ import { Breadcrumbs, Header } from "@plane/ui";
 import { BreadcrumbLink } from "@/components/common/breadcrumb-link";
 import { CountChip } from "@/components/common/count-chip";
 // constants
+import { ActiveUsersIndicator } from "@/components/issues/active-users-indicator";
 import { HeaderFilters } from "@/components/issues/filters";
 // helpers
 // hooks
@@ -91,6 +92,7 @@ export const IssuesHeader = observer(function IssuesHeader() {
               <CountChip count={issuesCount} />
             </Tooltip>
           ) : null}
+          {projectId ? <ActiveUsersIndicator projectId={projectId.toString()} /> : null}
         </div>
         {currentProjectDetails?.anchor ? (
           <a
