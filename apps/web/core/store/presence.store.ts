@@ -15,12 +15,13 @@ import type { CoreRootStore } from "./root.store";
 
 // Cadences (ms). Defaults; heartbeat/poll can be re-tuned from the server response.
 // Poll is what gates how fast *other* clients see a status change (your own tab updates
-// optimistically, so a slow poll only ever delays presence for everyone else). Keep it
-// low so presence feels live; the read endpoint is a ~2ms pure-Redis lookup. Heartbeat
-// stays high (it only refreshes the TTL + asserts idle; manual changes fire an immediate
-// beat) so backgrounded tabs whose timers get throttled don't flap offline.
+// optimistically, so a slow poll only ever delays presence for everyone else). 10s is
+// imperceptible for "who's around" yet ~10x lighter than 1s on the shared prod box — the
+// right trade for a per-tab loop. Heartbeat stays high (it only refreshes the TTL + asserts
+// idle; manual changes fire an immediate beat) so backgrounded tabs whose timers get
+// throttled don't flap offline.
 const DEFAULT_HEARTBEAT_INTERVAL_MS = 45_000;
-const DEFAULT_POLL_INTERVAL_MS = 1_000;
+const DEFAULT_POLL_INTERVAL_MS = 10_000;
 const IDLE_THRESHOLD_MS = 5 * 60_000;
 const IDLE_CHECK_INTERVAL_MS = 20_000;
 

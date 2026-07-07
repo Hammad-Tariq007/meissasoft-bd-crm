@@ -28,12 +28,12 @@ import time
 
 from plane.settings.redis import redis_instance
 
-# Cadences / lifetimes (seconds). PRESENCE_TTL is kept well above the heartbeat so a
-# backgrounded tab (whose timers the browser throttles) is tolerated before its session
-# is considered gone. POLL is low because it gates how fast other clients observe a
-# change; the read is a pure-Redis lookup so a short interval is cheap.
+# Cadences / lifetimes (seconds). PRESENCE_TTL is kept well above the heartbeat (>=2x) so
+# a backgrounded tab (whose timers the browser throttles) is tolerated before its session
+# is considered gone. POLL gates how fast other clients observe a change; 10s is
+# imperceptible for "who's around" and far lighter on shared infra than a sub-second loop.
 HEARTBEAT_INTERVAL = 45
-POLL_INTERVAL = 1
+POLL_INTERVAL = 10
 PRESENCE_TTL = 120
 
 # Statuses returned to clients. OFFLINE is represented by absence from the map.
