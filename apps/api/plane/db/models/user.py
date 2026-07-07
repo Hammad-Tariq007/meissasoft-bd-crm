@@ -115,6 +115,18 @@ class User(AbstractBaseUser, PermissionsMixin):
     is_bot = models.BooleanField(default=False)
     bot_type = models.CharField(max_length=30, verbose_name="Bot Type", blank=True, null=True)
 
+    # live-presence manual override (durable source of truth for DND). The volatile
+    # online/away/offline states are derived from ephemeral Redis presence, never stored.
+    class PresenceManualStatus(models.TextChoices):
+        AVAILABLE = "available", "Available"
+        DND = "dnd", "Do Not Disturb"
+
+    presence_manual_status = models.CharField(
+        max_length=20,
+        choices=PresenceManualStatus.choices,
+        default=PresenceManualStatus.AVAILABLE,
+    )
+
     # timezone
     USER_TIMEZONE_CHOICES = tuple(zip(pytz.common_timezones, pytz.common_timezones))
     user_timezone = models.CharField(max_length=255, default="UTC", choices=USER_TIMEZONE_CHOICES)

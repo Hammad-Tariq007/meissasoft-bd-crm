@@ -13,6 +13,8 @@ from plane.app.views import (
     WorkspaceInvitationsViewset,
     WorkspaceMemberUserEndpoint,
     WorkspaceMemberUserViewsEndpoint,
+    WorkspacePresenceEndpoint,
+    WorkspacePresenceHeartbeatEndpoint,
     WorkSpaceAvailabilityCheckEndpoint,
     UserLastProjectWithWorkspaceEndpoint,
     WorkspaceThemeViewSet,
@@ -93,6 +95,16 @@ urlpatterns = [
         "workspaces/<str:slug>/project-members/",
         WorkspaceProjectMemberEndpoint.as_view(),
         name="workspace-member-roles",
+    ),
+    path(
+        "workspaces/<str:slug>/presence/heartbeat/",
+        WorkspacePresenceHeartbeatEndpoint.as_view(),
+        name="workspace-presence-heartbeat",
+    ),
+    path(
+        "workspaces/<str:slug>/presence/",
+        WorkspacePresenceEndpoint.as_view(),
+        name="workspace-presence",
     ),
     path(
         "workspaces/<str:slug>/members/<uuid:pk>/",

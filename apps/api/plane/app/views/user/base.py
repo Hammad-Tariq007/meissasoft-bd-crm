@@ -22,6 +22,7 @@ from django.core.cache import cache
 from rest_framework import status
 from rest_framework.response import Response
 from rest_framework.permissions import AllowAny
+from rest_framework.throttling import UserRateThrottle
 
 # Module imports
 from plane.app.serializers import (
@@ -45,6 +46,7 @@ from plane.db.models import (
 )
 from plane.license.models import Instance, InstanceAdmin
 from plane.utils.paginator import BasePaginator
+from plane.utils.presence import set_manual_dnd
 from plane.authentication.utils.host import user_ip
 from plane.bgtasks.user_deactivation_email_task import user_deactivation_email
 from plane.utils.host import base_host
@@ -375,6 +377,34 @@ class UpdateUserTourCompletedEndpoint(BaseAPIView):
         profile.is_tour_completed = request.data.get("is_tour_completed", False)
         profile.save()
         return Response({"message": "Updated successfully"}, status=status.HTTP_200_OK)
+
+
+class PresenceStatusThrottle(UserRateThrottle):
+    """Manual DND toggles are rare and write Postgres; cap spam well above real use."""
+
+    scope = "presence_status"
+    rate = "30/minute"
+
+
+class UserPresenceManualStatusEndpoint(BaseAPIView):
+    """Set the durable manual presence override (Available / Do Not Disturb)."""
+
+    throttle_classes = [PresenceStatusThrottle]
+
+    def post(self, request):
+        value = request.data.get("manual_status")
+        valid_values = [choice[0] for choice in User.PresenceManualStatus.choices]
+        if value not in valid_values:
+            return Response(
+                {"error": "manual_status must be one of " + ", ".join(valid_values)},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        user = request.user
+        user.presence_manual_status = value
+        user.save(update_fields=["presence_manual_status"])
+        # keep the Redis mirror in sync so the presence read path stays pure-Redis
+        set_manual_dnd(user_id=user.id, dnd=(value == User.PresenceManualStatus.DND))
+        return Response({"manual_status": value}, status=status.HTTP_200_OK)
 
 
 class UserActivityEndpoint(BaseAPIView, BasePaginator):

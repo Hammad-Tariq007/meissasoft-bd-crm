@@ -10,6 +10,7 @@ from plane.app.views import (
     UpdateUserOnBoardedEndpoint,
     UpdateUserTourCompletedEndpoint,
     UserActivityEndpoint,
+    UserPresenceManualStatusEndpoint,
     UserActivityGraphEndpoint,
     ## User
     UserEndpoint,
@@ -63,6 +64,11 @@ urlpatterns = [
         name="user-tour",
     ),
     path("users/me/activities/", UserActivityEndpoint.as_view(), name="user-activities"),
+    path(
+        "users/me/presence/status/",
+        UserPresenceManualStatusEndpoint.as_view(),
+        name="user-presence-status",
+    ),
     # user workspaces
     path("users/me/workspaces/", UserWorkSpacesEndpoint.as_view(), name="user-workspace"),
     # User Graphs

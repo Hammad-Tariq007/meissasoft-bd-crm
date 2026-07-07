@@ -29,6 +29,7 @@ from .user.base import (
     UpdateUserOnBoardedEndpoint,
     UpdateUserTourCompletedEndpoint,
     UserActivityEndpoint,
+    UserPresenceManualStatusEndpoint,
 )
 
 
@@ -59,6 +60,10 @@ from .workspace.member import (
     WorkspaceMemberUserEndpoint,
     WorkspaceProjectMemberEndpoint,
     WorkspaceMemberUserViewsEndpoint,
+)
+from .workspace.presence import (
+    WorkspacePresenceEndpoint,
+    WorkspacePresenceHeartbeatEndpoint,
 )
 from .workspace.invite import (
     WorkspaceInvitationsViewset,

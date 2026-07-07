@@ -83,6 +83,7 @@ class UserMeSerializer(BaseSerializer):
             "is_email_verified",
             "last_login_medium",
             "last_login_time",
+            "presence_manual_status",
         ]
         read_only_fields = fields
 
