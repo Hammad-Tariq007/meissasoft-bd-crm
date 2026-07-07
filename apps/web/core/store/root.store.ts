@@ -47,6 +47,8 @@ import type { ILabelStore } from "./label.store";
 import { LabelStore } from "./label.store";
 import type { IMemberRootStore } from "./member";
 import { MemberRootStore } from "./member";
+import type { IPresenceStore } from "./presence.store";
+import { PresenceStore } from "./presence.store";
 import type { IModuleStore } from "./module.store";
 import { ModulesStore } from "./module.store";
 import type { IModuleFilterStore } from "./module_filter.store";
@@ -77,6 +79,7 @@ export class CoreRootStore {
   workspaceRoot: IWorkspaceRootStore;
   projectRoot: IProjectRootStore;
   memberRoot: IMemberRootStore;
+  presence: IPresenceStore;
   cycle: ICycleStore;
   cycleFilter: ICycleFilterStore;
   module: IModuleStore;
@@ -114,6 +117,7 @@ export class CoreRootStore {
     this.workspaceRoot = new WorkspaceRootStore(this as unknown as RootStore);
     this.projectRoot = new ProjectRootStore(this);
     this.memberRoot = new MemberRootStore(this as unknown as RootStore);
+    this.presence = new PresenceStore(this as unknown as CoreRootStore);
     this.cycle = new CycleStore(this);
     this.cycleFilter = new CycleFilterStore(this);
     this.module = new ModulesStore(this);
@@ -149,6 +153,10 @@ export class CoreRootStore {
     this.workspaceRoot = new WorkspaceRootStore(this as unknown as RootStore);
     this.projectRoot = new ProjectRootStore(this);
     this.memberRoot = new MemberRootStore(this as unknown as RootStore);
+    // stop any loops on the outgoing instance before replacing it, so a sign-out
+    // reset can never leave orphaned heartbeat/poll timers firing.
+    this.presence?.stop();
+    this.presence = new PresenceStore(this as unknown as CoreRootStore);
     this.cycle = new CycleStore(this);
     this.cycleFilter = new CycleFilterStore(this);
     this.module = new ModulesStore(this);

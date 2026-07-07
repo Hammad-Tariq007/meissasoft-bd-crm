@@ -50,7 +50,14 @@ export interface IUser extends IUserLite {
   username: string;
   last_login_medium: TLoginMediums;
   theme: IUserTheme;
+  presence_manual_status?: TPresenceManualStatus;
 }
+
+/** Durable manual presence override (source of truth for DND). */
+export type TPresenceManualStatus = "available" | "dnd";
+
+/** Derived, live presence status shown on avatars. "offline" means no live session. */
+export type TUserPresenceStatus = "online" | "away" | "dnd" | "offline";
 
 export interface IUserAccount {
   provider_account_id: string;
