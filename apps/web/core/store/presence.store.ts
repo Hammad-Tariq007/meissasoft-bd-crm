@@ -14,14 +14,21 @@ import { PresenceService } from "@/services/presence.service";
 import type { CoreRootStore } from "./root.store";
 
 // Cadences (ms). Defaults; heartbeat/poll can be re-tuned from the server response.
+// Poll is what gates how fast *other* clients see a status change (your own tab updates
+// optimistically, so a slow poll only ever delays presence for everyone else). Keep it
+// low so presence feels live; the read endpoint is a ~2ms pure-Redis lookup. Heartbeat
+// stays high (it only refreshes the TTL + asserts idle; manual changes fire an immediate
+// beat) so backgrounded tabs whose timers get throttled don't flap offline.
 const DEFAULT_HEARTBEAT_INTERVAL_MS = 45_000;
-const DEFAULT_POLL_INTERVAL_MS = 45_000;
+const DEFAULT_POLL_INTERVAL_MS = 1_000;
 const IDLE_THRESHOLD_MS = 5 * 60_000;
 const IDLE_CHECK_INTERVAL_MS = 20_000;
 
 const ACTIVITY_EVENTS = ["mousemove", "mousedown", "keydown", "scroll", "touchstart", "focus", "visibilitychange"];
 
 type TPresentStatus = Exclude<TUserPresenceStatus, "offline">;
+
+const MANUAL_STATUSES = new Set<TPresenceManualStatus>(["online", "away", "dnd", "offline"]);
 
 export interface IPresenceStore {
   // observables
@@ -40,7 +47,7 @@ export interface IPresenceStore {
 export class PresenceStore implements IPresenceStore {
   // observables
   statusMap: Record<string, TPresentStatus> = {};
-  manualStatus: TPresenceManualStatus = "available";
+  manualStatus: TPresenceManualStatus = "online";
   isIdle = false;
 
   // non-observable lifecycle handles — exactly one of each can ever exist, which is
@@ -83,10 +90,13 @@ export class PresenceStore implements IPresenceStore {
     this.activeWorkspaceSlug = workspaceSlug;
     if (!this.sessionId) this.sessionId = uuidv4(); // one id per tab, stable for its life
     this.lastActivityAt = Date.now();
-    // hydrate DND from the current user so it is asserted from the very first heartbeat
+    // hydrate the manual override from the current user so it is asserted from the very
+    // first heartbeat (unknown/legacy values fall back to the "online" auto default).
     const manual = this.rootStore.user?.data?.presence_manual_status;
     runInAction(() => {
-      this.manualStatus = manual === "dnd" ? "dnd" : "available";
+      this.manualStatus = MANUAL_STATUSES.has(manual as TPresenceManualStatus)
+        ? (manual as TPresenceManualStatus)
+        : "online";
       this.isIdle = false;
     });
 
@@ -106,14 +116,39 @@ export class PresenceStore implements IPresenceStore {
   };
 
   setManualStatus = async (status: TPresenceManualStatus) => {
-    await this.service.updateManualStatus(status);
+    if (this.manualStatus === status) return;
+    // Local-first, zero-await: flip the menu selection AND our own avatar dot in the same
+    // synchronous action, so the UI is instant regardless of network/throttle. The heartbeat
+    // carries manual_status, so live presence for everyone else is asserted immediately too;
+    // the durable POST below is best-effort persistence only (no rollback, no flicker).
     runInAction(() => {
       this.manualStatus = status;
+      this.applyOwnStatusLocally(status);
     });
-    void this.heartbeat(); // assert immediately rather than waiting for the next beat
+    void this.heartbeat().then(() => this.poll());
+    this.service.updateManualStatus(status).catch(() => {
+      // durable persist failed (offline/throttled) — the per-beat heartbeat keeps live
+      // presence correct, and it re-persists on the next successful call.
+    });
   };
 
   // -------- internals --------
+
+  /** Optimistically reflect our own manual status in the shared statusMap so every avatar
+   *  dot for the current user updates instantly, before the next poll confirms it. */
+  private applyOwnStatusLocally(status: TPresenceManualStatus) {
+    const userId = this.rootStore.user?.data?.id;
+    if (!userId) return;
+    const next = { ...this.statusMap };
+    if (status === "offline") {
+      delete next[userId]; // appear offline -> no dot
+    } else if (status === "online") {
+      next[userId] = this.isIdle ? "away" : "online"; // auto mode: idle still shows away
+    } else {
+      next[userId] = status; // "away" | "dnd"
+    }
+    this.statusMap = next;
+  }
 
   private teardown() {
     if (this.heartbeatTimer) clearInterval(this.heartbeatTimer);
@@ -155,7 +190,7 @@ export class PresenceStore implements IPresenceStore {
       await this.service.sendHeartbeat(slug, {
         session_id: this.sessionId,
         idle: this.isIdle,
-        dnd: this.manualStatus === "dnd",
+        manual_status: this.manualStatus,
       });
     } catch {
       // transient — the next beat retries; offline is derived server-side via TTL
@@ -168,7 +203,17 @@ export class PresenceStore implements IPresenceStore {
     try {
       const response = await this.service.fetchPresence(slug);
       runInAction(() => {
-        this.statusMap = response?.statuses ?? {};
+        const next = response?.statuses ?? {};
+        // We are the source of truth for our own *sticky* status (away / dnd / offline):
+        // the server only mirrors it from our heartbeat, so a poll that raced our last
+        // change could otherwise briefly revert our own dot. Overlay it to stay smooth.
+        // "online" is auto mode -> trust the server's activity/multi-tab derivation.
+        const userId = this.rootStore.user?.data?.id;
+        if (userId && this.manualStatus !== "online") {
+          if (this.manualStatus === "offline") delete next[userId];
+          else next[userId] = this.manualStatus;
+        }
+        this.statusMap = next;
       });
     } catch {
       // keep last-known statuses on a transient failure

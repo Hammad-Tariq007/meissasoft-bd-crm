@@ -4,34 +4,48 @@
 
 """
 Ephemeral live-presence state, backed entirely by Redis (no Postgres writes on the
-heartbeat/read hot path). Volatile states are derived, never stored:
+heartbeat/read hot path). The status shown to others is derived per user from:
 
-    - OFFLINE : the user has no live session key (heartbeat lapsed / disconnected)
-    - DND     : manual sticky override, asserted by the client on every heartbeat
-                (durable source of truth is User.presence_manual_status)
-    - ONLINE  : at least one live tab is active (union across the user's tabs)
-    - AWAY    : the user is present but every live tab is idle
+    - their durable manual override (User.presence_manual_status, re-asserted every beat)
+    - whether any live tab is currently active vs idle
+
+Manual override precedence:
+    - OFFLINE : the user chose "appear offline" -> omitted from the map entirely
+    - DND     : sticky, mutes notifications
+    - AWAY    : sticky manual away
+    - ONLINE  : default "auto" mode -> active tab => online, all tabs idle => away
+
+A user with no live session key (heartbeat lapsed / disconnected) is always OFFLINE,
+regardless of their manual override.
 
 Key schema (all TTL-bound so state self-cleans on disconnect):
     presence:sessions:{user_id}      HASH   field=session_id -> "active|idle:{epoch}"   EXPIRE PRESENCE_TTL
     presence:online:{workspace_id}   ZSET   member=user_id, score=last-heartbeat epoch
-    presence:dnd:{user_id}           STRING "1" while DND is on                          EX PRESENCE_TTL
+    presence:manual:{user_id}        STRING the manual override (omitted when "online")  EX PRESENCE_TTL
 """
 
 import time
 
 from plane.settings.redis import redis_instance
 
-# Cadences / lifetimes (seconds). PRESENCE_TTL is ~2.7x the heartbeat so one missed
-# beat is tolerated before a session is considered gone.
+# Cadences / lifetimes (seconds). PRESENCE_TTL is kept well above the heartbeat so a
+# backgrounded tab (whose timers the browser throttles) is tolerated before its session
+# is considered gone. POLL is low because it gates how fast other clients observe a
+# change; the read is a pure-Redis lookup so a short interval is cheap.
 HEARTBEAT_INTERVAL = 45
-POLL_INTERVAL = 45
+POLL_INTERVAL = 1
 PRESENCE_TTL = 120
 
-# Derived statuses returned to clients. OFFLINE is represented by absence from the map.
+# Statuses returned to clients. OFFLINE is represented by absence from the map.
 STATUS_ONLINE = "online"
 STATUS_AWAY = "away"
 STATUS_DND = "dnd"
+STATUS_OFFLINE = "offline"
+
+# Manual override values (mirror of User.PresenceManualStatus). "online" is the
+# implicit default and is stored as absence of the key to keep writes minimal.
+DEFAULT_MANUAL_STATUS = STATUS_ONLINE
+MANUAL_STATUSES = {STATUS_ONLINE, STATUS_AWAY, STATUS_DND, STATUS_OFFLINE}
 
 
 def _sessions_key(user_id):
@@ -42,8 +56,8 @@ def _online_key(workspace_id):
     return f"presence:online:{workspace_id}"
 
 
-def _dnd_key(user_id):
-    return f"presence:dnd:{user_id}"
+def _manual_key(user_id):
+    return f"presence:manual:{user_id}"
 
 
 def _now():
@@ -54,23 +68,29 @@ def _decode(value):
     return value.decode() if isinstance(value, (bytes, bytearray)) else value
 
 
-def record_heartbeat(*, workspace_id, user_id, session_id, idle, dnd):
+def _normalize_manual(manual_status):
+    return manual_status if manual_status in MANUAL_STATUSES else DEFAULT_MANUAL_STATUS
+
+
+def record_heartbeat(*, workspace_id, user_id, session_id, idle, manual_status):
     """Record a single tab's heartbeat. Refreshes all TTLs for this user."""
     ri = redis_instance()
     now = _now()
     state = "idle" if idle else "active"
     user_id = str(user_id)
+    manual_status = _normalize_manual(manual_status)
 
     pipe = ri.pipeline()
     pipe.hset(_sessions_key(user_id), session_id, f"{state}:{now}")
     pipe.expire(_sessions_key(user_id), PRESENCE_TTL)
     pipe.zadd(_online_key(workspace_id), {user_id: now})
-    # client re-asserts its durable DND each beat, so the mirror stays fresh even
-    # across a Redis flush and self-expires once the user disconnects.
-    if dnd:
-        pipe.set(_dnd_key(user_id), "1", ex=PRESENCE_TTL)
+    # client re-asserts its durable override each beat, so the mirror stays fresh even
+    # across a Redis flush and self-expires once the user disconnects. "online" is the
+    # default, stored as absence of the key.
+    if manual_status == DEFAULT_MANUAL_STATUS:
+        pipe.delete(_manual_key(user_id))
     else:
-        pipe.delete(_dnd_key(user_id))
+        pipe.set(_manual_key(user_id), manual_status, ex=PRESENCE_TTL)
     pipe.execute()
 
 
@@ -83,20 +103,22 @@ def remove_session(*, workspace_id, user_id, session_id):
         ri.zrem(_online_key(workspace_id), user_id)
 
 
-def set_manual_dnd(*, user_id, dnd):
-    """Mirror the durable Postgres DND flag into Redis for the hot read path."""
+def set_manual_status(*, user_id, manual_status):
+    """Mirror the durable Postgres manual override into Redis for the hot read path."""
     ri = redis_instance()
     user_id = str(user_id)
-    if dnd:
-        ri.set(_dnd_key(user_id), "1", ex=PRESENCE_TTL)
+    manual_status = _normalize_manual(manual_status)
+    if manual_status == DEFAULT_MANUAL_STATUS:
+        ri.delete(_manual_key(user_id))
     else:
-        ri.delete(_dnd_key(user_id))
+        ri.set(_manual_key(user_id), manual_status, ex=PRESENCE_TTL)
 
 
 def get_workspace_presence(workspace_id):
     """
     Return {user_id: status} for every present user in the workspace. Offline users
-    are omitted (absence == offline). Status is derived by unioning each user's tabs.
+    (no live session, or manual "offline") are omitted. Status is derived by unioning
+    each user's tabs against their manual override.
     """
     ri = redis_instance()
     now = _now()
@@ -113,10 +135,10 @@ def get_workspace_presence(workspace_id):
     for uid in present_ids:
         pipe.hgetall(_sessions_key(uid))
     for uid in present_ids:
-        pipe.get(_dnd_key(uid))
+        pipe.get(_manual_key(uid))
     results = pipe.execute()
     session_maps = results[: len(present_ids)]
-    dnd_flags = results[len(present_ids) :]
+    manual_flags = results[len(present_ids) :]
 
     statuses = {}
     for index, uid in enumerate(present_ids):
@@ -134,10 +156,13 @@ def get_workspace_presence(workspace_id):
         if not any_live:
             # ZSET not yet pruned but every session hash field is stale -> offline
             continue
-        if dnd_flags[index]:
+        manual = _decode(manual_flags[index]) or DEFAULT_MANUAL_STATUS
+        if manual == STATUS_OFFLINE:
+            continue  # user chose to appear offline
+        if manual == STATUS_DND:
             statuses[uid] = STATUS_DND
-        elif any_active:
-            statuses[uid] = STATUS_ONLINE
-        else:
+        elif manual == STATUS_AWAY:
             statuses[uid] = STATUS_AWAY
+        else:  # "online" auto mode: activity decides
+            statuses[uid] = STATUS_ONLINE if any_active else STATUS_AWAY
     return statuses

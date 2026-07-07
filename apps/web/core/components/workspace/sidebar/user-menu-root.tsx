@@ -7,20 +7,36 @@
 import { useState, useEffect } from "react";
 import { observer } from "mobx-react";
 import { useRouter } from "next/navigation";
-import { LogOut, Settings, Settings2 } from "lucide-react";
+import { Check, LogOut, Settings, Settings2 } from "lucide-react";
 // plane imports
 import { GOD_MODE_URL } from "@plane/constants";
 import { useTranslation } from "@plane/i18n";
 import { TOAST_TYPE, setToast } from "@plane/propel/toast";
+import type { TPresenceManualStatus } from "@plane/types";
 import { Avatar, CustomMenu } from "@plane/ui";
-import { getFileURL } from "@plane/utils";
+import { cn, getFileURL } from "@plane/utils";
 // components
 import { CoverImage } from "@/components/common/cover-image";
 import { AppSidebarItem } from "@/components/sidebar/sidebar-item";
 // hooks
 import { useAppTheme } from "@/hooks/store/use-app-theme";
 import { useCommandPalette } from "@/hooks/store/use-command-palette";
+import { usePresence } from "@/hooks/store/use-presence";
 import { useUser } from "@/hooks/store/user";
+
+// Slack-style manual presence picker. "online" is the auto default (idle still derives
+// away); the rest are sticky overrides. `color: undefined` renders a hollow ring.
+const STATUS_OPTIONS: {
+  value: TPresenceManualStatus;
+  label: string;
+  subtitle?: string;
+  color?: string;
+}[] = [
+  { value: "online", label: "Online", color: "#22c55e" },
+  { value: "away", label: "Away", color: "#f59e0b" },
+  { value: "dnd", label: "Do not disturb", subtitle: "Disables all notifications", color: "#ef4444" },
+  { value: "offline", label: "Offline", color: undefined },
+];
 
 export const UserMenuRoot = observer(function UserMenuRoot() {
   // states
@@ -32,6 +48,7 @@ export const UserMenuRoot = observer(function UserMenuRoot() {
   const { data: currentUser } = useUser();
   const { signOut } = useUser();
   const { toggleProfileSettingsModal } = useCommandPalette();
+  const presence = usePresence();
   // derived values
   const isUserInstanceAdmin = false;
   // translation
@@ -106,6 +123,39 @@ export const UserMenuRoot = observer(function UserMenuRoot() {
             </div>
           </div>
         </div>
+      </div>
+      <div>
+        {STATUS_OPTIONS.map((option) => {
+          const isSelected = presence.manualStatus === option.value;
+          return (
+            <button
+              key={option.value}
+              type="button"
+              // Plain button (not CustomMenu.MenuItem) + stopPropagation so selecting a
+              // status does NOT bubble to the menu's closeOnSelect handler — the picker
+              // stays open and the check mark moves in place as you switch.
+              onClick={(e) => {
+                e.stopPropagation();
+                void presence.setManualStatus(option.value);
+              }}
+              className="flex w-full items-center gap-2.5 rounded-sm px-1 py-1.5 text-left text-secondary select-none hover:bg-layer-transparent-hover"
+            >
+              <span
+                className="size-2.5 shrink-0 rounded-full"
+                style={
+                  option.color
+                    ? { backgroundColor: option.color }
+                    : { border: "1.5px solid var(--color-border-strong)" }
+                }
+              />
+              <span className="flex flex-grow flex-col">
+                <span className={cn({ "font-medium text-primary": isSelected })}>{option.label}</span>
+                {option.subtitle && <span className="text-11 text-placeholder">{option.subtitle}</span>}
+              </span>
+              {isSelected && <Check className="size-3.5 shrink-0 text-accent-primary" />}
+            </button>
+          );
+        })}
       </div>
       <div>
         <CustomMenu.MenuItem

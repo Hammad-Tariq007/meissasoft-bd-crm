@@ -53,8 +53,11 @@ export interface IUser extends IUserLite {
   presence_manual_status?: TPresenceManualStatus;
 }
 
-/** Durable manual presence override (source of truth for DND). */
-export type TPresenceManualStatus = "available" | "dnd";
+/**
+ * Durable manual presence override. "online" is the default auto mode (idle still
+ * derives away); "away"/"dnd"/"offline" are sticky manual overrides.
+ */
+export type TPresenceManualStatus = "online" | "away" | "dnd" | "offline";
 
 /** Derived, live presence status shown on avatars. "offline" means no live session. */
 export type TUserPresenceStatus = "online" | "away" | "dnd" | "offline";

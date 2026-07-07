@@ -10,6 +10,7 @@ import { observer } from "mobx-react";
 import { EUserPermissions, EUserPermissionsLevel } from "@plane/constants";
 // components
 import { SidebarWrapper } from "@/components/sidebar/sidebar-wrapper";
+import { SidebarActiveMembers } from "@/components/workspace/sidebar/active-members-list";
 import { SidebarFavoritesMenu } from "@/components/workspace/sidebar/favorites/favorites-menu";
 import { SidebarProjectsList } from "@/components/workspace/sidebar/projects-list";
 import { SidebarQuickActions } from "@/components/workspace/sidebar/quick-actions";
@@ -42,6 +43,8 @@ export const AppSidebar = observer(function AppSidebar() {
       <SidebarTeamsList />
       {/* Projects List */}
       <SidebarProjectsList />
+      {/* Active members (live presence) */}
+      <SidebarActiveMembers />
     </SidebarWrapper>
   );
 });

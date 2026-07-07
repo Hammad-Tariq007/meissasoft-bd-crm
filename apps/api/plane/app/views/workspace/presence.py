@@ -50,7 +50,7 @@ class WorkspacePresenceHeartbeatEndpoint(BaseAPIView):
             user_id=request.user.id,
             session_id=str(session_id),
             idle=bool(request.data.get("idle", False)),
-            dnd=bool(request.data.get("dnd", False)),
+            manual_status=request.data.get("manual_status"),
         )
         return Response(
             {

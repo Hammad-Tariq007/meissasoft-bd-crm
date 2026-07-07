@@ -115,16 +115,18 @@ class User(AbstractBaseUser, PermissionsMixin):
     is_bot = models.BooleanField(default=False)
     bot_type = models.CharField(max_length=30, verbose_name="Bot Type", blank=True, null=True)
 
-    # live-presence manual override (durable source of truth for DND). The volatile
-    # online/away/offline states are derived from ephemeral Redis presence, never stored.
+    # live-presence manual override (durable source of truth). "online" is the default
+    # auto mode (idle still derives away); "away"/"dnd"/"offline" are sticky overrides.
     class PresenceManualStatus(models.TextChoices):
-        AVAILABLE = "available", "Available"
+        ONLINE = "online", "Online"
+        AWAY = "away", "Away"
         DND = "dnd", "Do Not Disturb"
+        OFFLINE = "offline", "Offline"
 
     presence_manual_status = models.CharField(
         max_length=20,
         choices=PresenceManualStatus.choices,
-        default=PresenceManualStatus.AVAILABLE,
+        default=PresenceManualStatus.ONLINE,
     )
 
     # timezone

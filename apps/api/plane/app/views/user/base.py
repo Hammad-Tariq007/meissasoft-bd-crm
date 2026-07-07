@@ -46,7 +46,7 @@ from plane.db.models import (
 )
 from plane.license.models import Instance, InstanceAdmin
 from plane.utils.paginator import BasePaginator
-from plane.utils.presence import set_manual_dnd
+from plane.utils.presence import set_manual_status
 from plane.authentication.utils.host import user_ip
 from plane.bgtasks.user_deactivation_email_task import user_deactivation_email
 from plane.utils.host import base_host
@@ -387,7 +387,7 @@ class PresenceStatusThrottle(UserRateThrottle):
 
 
 class UserPresenceManualStatusEndpoint(BaseAPIView):
-    """Set the durable manual presence override (Available / Do Not Disturb)."""
+    """Set the durable manual presence override (Online / Away / Do Not Disturb / Offline)."""
 
     throttle_classes = [PresenceStatusThrottle]
 
@@ -403,7 +403,7 @@ class UserPresenceManualStatusEndpoint(BaseAPIView):
         user.presence_manual_status = value
         user.save(update_fields=["presence_manual_status"])
         # keep the Redis mirror in sync so the presence read path stays pure-Redis
-        set_manual_dnd(user_id=user.id, dnd=(value == User.PresenceManualStatus.DND))
+        set_manual_status(user_id=user.id, manual_status=value)
         return Response({"manual_status": value}, status=status.HTTP_200_OK)
 
 

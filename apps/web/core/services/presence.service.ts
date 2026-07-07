@@ -12,7 +12,7 @@ import { APIService } from "./api.service";
 type THeartbeatPayload = {
   session_id: string;
   idle: boolean;
-  dnd: boolean;
+  manual_status: TPresenceManualStatus;
 };
 
 type THeartbeatResponse = {

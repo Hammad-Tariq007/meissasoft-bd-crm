@@ -4,6 +4,8 @@
  * See the LICENSE file for details.
  */
 
+/* eslint-disable no-shadow -- issue-operation handler params (workspaceSlug/projectId/issueId/cycleId/moduleId) are intentionally named after their arguments and shadow the component-scope ids */
+
 import { useMemo } from "react";
 import { observer } from "mobx-react";
 // plane imports
