@@ -28,6 +28,9 @@ export type TFiltersRowProps<K extends TFilterProperty, E extends TExternalFilte
   /** Filter properties whose chips are hidden from the row (they still apply) — e.g. a property
    * that is driven by a dedicated control in `leadingContent`, so its chip would be redundant. */
   hiddenProperties?: K[];
+  /** Overrides the "Clear all" action. Use when clearing should reset to a default view rather
+   * than an empty expression (e.g. keep a default date scope). Falls back to `filter.clearFilters`. */
+  onClearFilters?: () => void;
   trackerElements?: {
     clearFilter?: string;
     saveView?: string;
@@ -45,6 +48,7 @@ export const FiltersRow = observer(function FiltersRow<K extends TFilterProperty
     variant = "header",
     leadingContent,
     hiddenProperties,
+    onClearFilters,
     trackerElements,
   } = props;
   // states
@@ -104,7 +108,7 @@ export const FiltersRow = observer(function FiltersRow<K extends TFilterProperty
         <Button
           variant="secondary"
           className={COMMON_OPERATION_BUTTON_CLASSNAME}
-          onClick={filter.clearFilters}
+          onClick={onClearFilters ?? filter.clearFilters}
           data-ph-element={trackerElements?.clearFilter}
         >
           {filter.clearFilterOptions?.label ?? "Clear all"}

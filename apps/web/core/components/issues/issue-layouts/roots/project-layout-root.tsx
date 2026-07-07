@@ -8,9 +8,14 @@ import { observer } from "mobx-react";
 import { useParams } from "next/navigation";
 import useSWR from "swr";
 // plane constants
-import { ISSUE_DISPLAY_FILTERS_BY_PAGE, PROJECT_VIEW_TRACKER_ELEMENTS } from "@plane/constants";
+import {
+  DEFAULT_LEAD_DATE_PRESET,
+  ISSUE_DISPLAY_FILTERS_BY_PAGE,
+  PROJECT_VIEW_TRACKER_ELEMENTS,
+} from "@plane/constants";
 import { EIssueLayoutTypes, EIssuesStoreType } from "@plane/types";
 import { Spinner } from "@plane/ui";
+import { resolveLeadDateRange, upsertCreatedAtRange } from "@plane/utils";
 // components
 import { ProjectLevelWorkItemFiltersHOC } from "@/components/work-item-filters/filters-hoc/project-level";
 import { WorkItemFiltersRow } from "@/components/work-item-filters/filters-row";
@@ -18,6 +23,8 @@ import { WorkItemFiltersRow } from "@/components/work-item-filters/filters-row";
 import { useIssues } from "@/hooks/store/use-issues";
 import { useUser } from "@/hooks/store/user";
 import { IssuesStoreContext } from "@/hooks/use-issue-layout-store";
+// local storage
+import { leadDatePresetStorage } from "@/lib/lead-date-preset-storage";
 // local imports
 import { IssuePeekOverview } from "../../peek-overview";
 import { CalendarLayout } from "../calendar/roots/project-root";
@@ -99,6 +106,14 @@ export const ProjectLayoutRoot = observer(function ProjectLayoutRoot() {
                 }
                 // created_at is driven by the date-range pill (leadingContent); its chip would be redundant
                 hiddenProperties={["created_at"]}
+                // "Clear all" means reset to the default view: clear other filters and restore the
+                // This Month date scope (All Time stays reachable only via the pill).
+                onClearFilters={() => {
+                  projectWorkItemsFilter.resetExpression(
+                    upsertCreatedAtRange({}, resolveLeadDateRange(DEFAULT_LEAD_DATE_PRESET))
+                  );
+                  leadDatePresetStorage.set(workspaceSlug, projectId, userId, DEFAULT_LEAD_DATE_PRESET);
+                }}
                 trackerElements={{
                   saveView: PROJECT_VIEW_TRACKER_ELEMENTS.PROJECT_HEADER_SAVE_AS_VIEW_BUTTON,
                 }}
