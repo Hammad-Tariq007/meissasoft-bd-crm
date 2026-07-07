@@ -8,9 +8,11 @@ import { observer } from "mobx-react";
 import type { LucideIcon } from "lucide-react";
 import { MembersPropertyIcon } from "@plane/propel/icons";
 // plane ui
-import { Avatar, AvatarGroup } from "@plane/ui";
+import { AvatarGroup } from "@plane/ui";
 import { cn, getFileURL } from "@plane/utils";
 // plane utils
+// components
+import { UserAvatar } from "@/components/common/user-avatar";
 // helpers
 // hooks
 import { useMember } from "@/hooks/store/use-member";
@@ -35,7 +37,17 @@ export const ButtonAvatars = observer(function ButtonAvatars(props: AvatarProps)
             const userDetails = getUserDetails(userId);
 
             if (!userDetails) return;
-            return <Avatar key={userId} src={getFileURL(userDetails.avatar_url)} name={userDetails.display_name} />;
+            // dots are suppressed inside the overlapping stack (they would be occluded by
+            // the neighbouring avatar); presence shows on standalone avatars instead.
+            return (
+              <UserAvatar
+                key={userId}
+                userId={userId}
+                src={getFileURL(userDetails.avatar_url)}
+                name={userDetails.display_name}
+                showStatus={false}
+              />
+            );
           })}
         </AvatarGroup>
       );
@@ -43,7 +55,8 @@ export const ButtonAvatars = observer(function ButtonAvatars(props: AvatarProps)
     if (userIds) {
       const userDetails = getUserDetails(userIds);
       return (
-        <Avatar
+        <UserAvatar
+          userId={userIds}
           src={getFileURL(userDetails?.avatar_url ?? "")}
           name={userDetails?.display_name}
           size={size}

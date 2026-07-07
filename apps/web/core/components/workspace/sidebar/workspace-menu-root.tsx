@@ -22,6 +22,7 @@ import { orderWorkspacesList, cn } from "@plane/utils";
 import { AppSidebarItem } from "@/components/sidebar/sidebar-item";
 // hooks
 import { useAppTheme } from "@/hooks/store/use-app-theme";
+import { usePresence } from "@/hooks/store/use-presence";
 import { useWorkspace } from "@/hooks/store/use-workspace";
 import { useUser, useUserProfile } from "@/hooks/store/user";
 import { useInstance } from "@/hooks/store/use-instance";
@@ -41,6 +42,7 @@ export const WorkspaceMenuRoot = observer(function WorkspaceMenuRoot(props: Work
   const { data: currentUser } = useUser();
   const { signOut } = useUser();
   const { updateUserProfile } = useUserProfile();
+  const presence = usePresence();
   const { currentWorkspace: activeWorkspace, workspaces } = useWorkspace();
   // derived values
   const isWorkspaceCreationDisabled = config?.is_workspace_creation_disabled ?? false;
@@ -158,6 +160,19 @@ export const WorkspaceMenuRoot = observer(function WorkspaceMenuRoot(props: Work
                     <span className="sticky top-0 z-21 h-full w-full flex-shrink-0 truncate rounded-md bg-surface-1 px-4 pt-3 pb-1 text-left text-13 font-medium text-placeholder">
                       {currentUser?.email}
                     </span>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        presence.setManualStatus(presence.manualStatus === "dnd" ? "available" : "dnd")
+                      }
+                      className="flex w-full items-center gap-2 px-4 py-1.5 text-left text-13 text-secondary hover:bg-layer-transparent-hover"
+                    >
+                      <span
+                        className="h-2 w-2 flex-shrink-0 rounded-full"
+                        style={{ backgroundColor: presence.manualStatus === "dnd" ? "#ef4444" : "#22c55e" }}
+                      />
+                      {presence.manualStatus === "dnd" ? "Do Not Disturb" : "Available"}
+                    </button>
                     {workspacesList ? (
                       <div className="flex size-full flex-col items-start justify-start">
                         {(activeWorkspace

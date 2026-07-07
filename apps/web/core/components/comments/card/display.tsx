@@ -21,7 +21,8 @@ import { LiteTextEditor } from "@/components/editor/lite-text";
 import { CommentReactions } from "../comment-reaction";
 import { CommentCardEditForm } from "./edit-form";
 import { EmojiReactionButton, EmojiReactionPicker } from "@plane/propel/emoji-reaction";
-import { Avatar, Tooltip } from "@plane/ui";
+import { Tooltip } from "@plane/ui";
+import { UserAvatar } from "@/components/common/user-avatar";
 import { useMember } from "@/hooks/store/use-member";
 
 export type TCommentCardDisplayProps = {
@@ -117,7 +118,7 @@ export const CommentCardDisplay = observer(function CommentCardDisplay(props: TC
         </div>
       )}
       <div className="relative mb-3 flex w-full items-center gap-2">
-        <Avatar size="sm" name={displayName} src={getFileURL(avatarUrl)} className="shrink-0" />
+        <UserAvatar userId={comment?.actor} size="sm" name={displayName} src={getFileURL(avatarUrl)} className="shrink-0" />
         <div className="flex flex-1 flex-wrap items-center gap-1">
           <div className="text-caption-sm-medium">{displayName}</div>
           <div className="text-caption-sm-regular text-tertiary">

@@ -18,30 +18,35 @@ export const getSizeInfo = (size: TAvatarSize) => {
         avatarSize: "h-4 w-4",
         fontSize: "text-11",
         spacing: "-space-x-1",
+        dotSize: "h-1.5 w-1.5",
       };
     case "md":
       return {
         avatarSize: "h-5 w-5",
         fontSize: "text-11",
         spacing: "-space-x-1",
+        dotSize: "h-2 w-2",
       };
     case "base":
       return {
         avatarSize: "h-6 w-6",
         fontSize: "text-13",
         spacing: "-space-x-1.5",
+        dotSize: "h-2.5 w-2.5",
       };
     case "lg":
       return {
         avatarSize: "h-7 w-7",
         fontSize: "text-13",
         spacing: "-space-x-1.5",
+        dotSize: "h-2.5 w-2.5",
       };
     default:
       return {
         avatarSize: "h-5 w-5",
         fontSize: "text-11",
         spacing: "-space-x-1",
+        dotSize: "h-2 w-2",
       };
   }
 };

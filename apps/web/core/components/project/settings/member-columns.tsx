@@ -16,6 +16,7 @@ import type { EUserProjectRoles, IUser, IWorkspaceMember, TProjectMembership } f
 import { CustomMenu, CustomSelect } from "@plane/ui";
 import { getFileURL } from "@plane/utils";
 // hooks
+import { UserAvatar } from "@/components/common/user-avatar";
 import { useMember } from "@/hooks/store/use-member";
 import { useUser, useUserPermissions } from "@/hooks/store/user";
 
@@ -49,23 +50,16 @@ export function NameColumn(props: NameProps) {
         <div className="group relative">
           <div className="flex w-72 items-center gap-2">
             <div className="flex flex-1 items-center gap-x-2 gap-y-2">
-              {avatar_url && avatar_url.trim() !== "" ? (
-                <Link href={`/${workspaceSlug}/profile/${id}`}>
-                  <span className="relative flex size-6 items-center justify-center rounded-full text-on-color capitalize">
-                    <img
-                      src={getFileURL(avatar_url)}
-                      className="absolute top-0 left-0 h-full w-full rounded-full object-cover"
-                      alt={display_name || email}
-                    />
-                  </span>
-                </Link>
-              ) : (
-                <Link href={`/${workspaceSlug}/profile/${id}`}>
-                  <span className="relative flex size-6 items-center justify-center rounded-full bg-layer-3 text-11 text-on-color capitalize">
-                    {(email ?? display_name ?? "?")[0]}
-                  </span>
-                </Link>
-              )}
+              <Link href={`/${workspaceSlug}/profile/${id}`}>
+                <UserAvatar
+                  userId={id}
+                  src={getFileURL(avatar_url ?? "")}
+                  name={display_name || email}
+                  size="base"
+                  showTooltip={false}
+                  className="object-cover"
+                />
+              </Link>
               {first_name} {last_name}
             </div>
             {(isAdmin || id === currentUser?.id) && (

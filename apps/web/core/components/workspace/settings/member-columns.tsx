@@ -20,6 +20,7 @@ import { CustomSelect, PopoverMenu } from "@plane/ui";
 // helpers
 import { getFileURL } from "@plane/utils";
 // hooks
+import { UserAvatar } from "@/components/common/user-avatar";
 import { useMember } from "@/hooks/store/use-member";
 import { useUser, useUserPermissions } from "@/hooks/store/user";
 
@@ -58,21 +59,16 @@ export function NameColumn(props: NameProps) {
                 <div className="rounded-full bg-layer-1">
                   <SuspendedUserIcon className="size-6 text-placeholder" />
                 </div>
-              ) : avatar_url && avatar_url.trim() !== "" ? (
-                <Link href={`/${workspaceSlug}/profile/${id}`}>
-                  <span className="relative flex size-6 items-center justify-center rounded-full text-on-color capitalize">
-                    <img
-                      src={getFileURL(avatar_url)}
-                      className="absolute top-0 left-0 h-full w-full rounded-full object-cover"
-                      alt={display_name || email}
-                    />
-                  </span>
-                </Link>
               ) : (
                 <Link href={`/${workspaceSlug}/profile/${id}`}>
-                  <span className="relative flex size-6 items-center justify-center rounded-full bg-layer-3 text-11 text-tertiary capitalize">
-                    {(email ?? display_name ?? "?")[0]}
-                  </span>
+                  <UserAvatar
+                    userId={id}
+                    src={getFileURL(avatar_url ?? "")}
+                    name={display_name || email}
+                    size="base"
+                    showTooltip={false}
+                    className="object-cover"
+                  />
                 </Link>
               )}
               <span className={isSuspended ? "text-placeholder" : ""}>

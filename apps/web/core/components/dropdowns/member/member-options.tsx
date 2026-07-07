@@ -16,7 +16,7 @@ import { useTranslation } from "@plane/i18n";
 import { CheckIcon, SearchIcon, SuspendedUserIcon } from "@plane/propel/icons";
 import { EPillSize, EPillVariant, Pill } from "@plane/propel/pill";
 import type { IUserLite } from "@plane/types";
-import { Avatar } from "@plane/ui";
+import { UserAvatar } from "@/components/common/user-avatar";
 import { cn, getFileURL, sortByCurrentUserThenSelected } from "@plane/utils";
 // hooks
 import { useMember } from "@/hooks/store/use-member";
@@ -102,7 +102,11 @@ export const MemberOptions = observer(function MemberOptions(props: Props) {
               {isUserSuspended(userId, workspaceSlug?.toString()) ? (
                 <SuspendedUserIcon className="h-3.5 w-3.5 text-placeholder" />
               ) : (
-                <Avatar name={userDetails?.display_name} src={getFileURL(userDetails?.avatar_url ?? "")} />
+                <UserAvatar
+                  userId={userId}
+                  name={userDetails?.display_name}
+                  src={getFileURL(userDetails?.avatar_url ?? "")}
+                />
               )}
             </div>
             <span
