@@ -24,5 +24,7 @@ export const WorkItemFiltersToggle = observer(function WorkItemFiltersToggle(pro
   // derived values
   const filter = getFilter(entityType, entityId);
 
-  return <FiltersToggle filter={filter} />;
+  // Leads always carry a default date scope, so the "filters applied" highlight would be permanently
+  // on; render the toggle neutral like the other toolbar buttons instead.
+  return <FiltersToggle filter={filter} showActiveState={false} />;
 });

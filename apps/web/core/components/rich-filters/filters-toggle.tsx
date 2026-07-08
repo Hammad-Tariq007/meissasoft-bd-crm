@@ -16,6 +16,12 @@ import { AddFilterButton } from "@/components/rich-filters/add-filters/button";
 
 type TFiltersToggleProps<P extends TFilterProperty, E extends TExternalFilter> = {
   filter: IFilterInstance<P, E> | undefined;
+  /**
+   * When false, the toggle never shows the accent ("filters applied") highlight and renders as a
+   * neutral icon button like its toolbar siblings. Use where a filter is always present by default
+   * (e.g. leads carry a default date scope), so a permanent blue highlight would be meaningless noise.
+   */
+  showActiveState?: boolean;
 };
 
 const COMMON_CLASSNAME =
@@ -24,12 +30,14 @@ const COMMON_CLASSNAME =
 export const FiltersToggle = observer(function FiltersToggle<P extends TFilterProperty, E extends TExternalFilter>(
   props: TFiltersToggleProps<P, E>
 ) {
-  const { filter } = props;
+  const { filter, showActiveState = true } = props;
   // derived values
   const hasAnyConditions = (filter?.allConditionsForDisplay.length ?? 0) > 0;
   const isFilterRowVisible = filter?.isVisible ?? false;
   const hasUpdates = filter?.canUpdateView === true && filter?.hasChanges === true;
-  const showFilterRowChangesPill = hasUpdates || hasAnyConditions === true;
+  // Blue "filters applied" highlight — suppressed entirely when showActiveState is false so the
+  // button matches its neutral toolbar siblings instead of being permanently accented.
+  const isToggleActive = showActiveState && (hasUpdates || hasAnyConditions === true);
   const showAddFilterButton = !hasAnyConditions && !isFilterRowVisible && !hasUpdates;
 
   const handleToggleFilter = () => {
@@ -53,13 +61,13 @@ export const FiltersToggle = observer(function FiltersToggle<P extends TFilterPr
     : "bg-accent-subtle hover:bg-accent-subtle active:bg-accent-subtle focus:bg-accent-subtle";
 
   const buttonClassName = cn({
-    [activeFilterBaseClasses]: showFilterRowChangesPill,
-    [backgroundClasses]: showFilterRowChangesPill,
-    [noHoverStateClasses]: showFilterRowChangesPill,
+    [activeFilterBaseClasses]: isToggleActive,
+    [backgroundClasses]: isToggleActive,
+    [noHoverStateClasses]: isToggleActive,
   });
 
   const iconClassName = cn({
-    "text-accent-primary [&_path]:fill-current": showFilterRowChangesPill,
+    "text-accent-primary [&_path]:fill-current": isToggleActive,
   });
 
   // Show the add filter button when there are no active conditions, the filter row is hidden, and no unsaved changes exist
@@ -81,7 +89,7 @@ export const FiltersToggle = observer(function FiltersToggle<P extends TFilterPr
     <IconButton
       size="lg"
       variant="secondary"
-      icon={showFilterRowChangesPill ? FilterAppliedIcon : FilterIcon}
+      icon={isToggleActive ? FilterAppliedIcon : FilterIcon}
       onClick={handleToggleFilter}
       className={buttonClassName}
       iconClassName={iconClassName}
