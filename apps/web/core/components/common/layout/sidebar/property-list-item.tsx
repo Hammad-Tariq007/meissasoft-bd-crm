@@ -20,8 +20,8 @@ export function SidebarPropertyListItem(props: TSidebarPropertyListItemProps) {
   const { icon: Icon, label, children, appendElement, childrenClassName, className } = props;
 
   return (
-    <div role="group" aria-label={label} className={cn("flex items-start gap-2", className)}>
-      <div className="flex h-7.5 w-30 shrink-0 items-center gap-1.5 text-body-xs-regular text-tertiary">
+    <div role="group" aria-label={label} className={cn("flex items-start gap-3", className)}>
+      <div className="flex h-7.5 w-40 shrink-0 items-center gap-1.5 text-body-xs-regular text-tertiary">
         <Icon className="size-4 shrink-0" />
         <span className="min-w-0 truncate">{label}</span>
         {appendElement}
