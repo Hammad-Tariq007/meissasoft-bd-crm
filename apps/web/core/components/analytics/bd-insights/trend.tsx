@@ -93,7 +93,10 @@ export const TrendOverTime = observer(function TrendOverTime() {
           className="h-[350px] w-full"
           data={chartData}
           areas={areas}
-          xAxis={{ key: "name", label: "Week" }}
+          // No x-axis label: the ticks are dated weeks (e.g. "Jul 06, 2026"), so a "Week"
+          // title is redundant and, with a bottom legend, the shared chart renders it
+          // overlapping the legend text. Keep the y-axis "Count" label.
+          xAxis={{ key: "name" }}
           yAxis={{ key: "created", label: "Count", offset: -40, dx: -20 }}
           legend={{ align: "left", verticalAlign: "bottom", layout: "horizontal" }}
         />
