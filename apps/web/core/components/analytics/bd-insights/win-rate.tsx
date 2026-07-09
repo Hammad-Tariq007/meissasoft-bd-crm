@@ -15,6 +15,7 @@ import { AnalyticsService } from "@/services/analytics.service";
 import AnalyticsSectionWrapper from "../analytics-section-wrapper";
 import { ChartLoader } from "../loaders";
 import { BDMessage, StatTile, useBDInsightsKey } from "./common";
+import { WinRateBars } from "./win-rate-bars";
 
 const analyticsService = new AnalyticsService();
 
@@ -67,32 +68,20 @@ export const WinRateInsight = observer(function WinRateInsight() {
             <StatTile label="Closed (won + lost)" value={String(data.overall.closed)} />
           </div>
 
-          {data.per_bd.length > 0 ? (
-            <div className="overflow-x-auto rounded-md border border-subtle">
-              <table className="w-full text-13">
-                <thead className="border-b border-subtle text-tertiary">
-                  <tr>
-                    <th className="px-4 py-2 text-left font-medium">BD</th>
-                    <th className="px-4 py-2 text-right font-medium">Won</th>
-                    <th className="px-4 py-2 text-right font-medium">Closed</th>
-                    <th className="px-4 py-2 text-right font-medium">Win rate</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {data.per_bd.map((row) => (
-                    <tr key={row.assignee_id} className="border-b border-subtle last:border-b-0">
-                      <td className="px-4 py-2 text-left text-primary">{row.assignee_name}</td>
-                      <td className="px-4 py-2 text-right">{row.won}</td>
-                      <td className="px-4 py-2 text-right">{row.closed}</td>
-                      <td className="px-4 py-2 text-right font-medium text-primary">{pct(row.win_rate)}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          ) : (
-            <BDMessage title="No per-BD data" description="No closed leads with an assignee in the selected range." />
-          )}
+          <div className="flex flex-col gap-3">
+            <div className="text-13 font-medium text-primary">Win rate by BD</div>
+            <WinRateBars
+              rows={data.per_bd.map((row) => ({
+                key: row.assignee_id,
+                name: row.assignee_name,
+                won: row.won,
+                closed: row.closed,
+                win_rate: row.win_rate,
+              }))}
+              emptyTitle="No per-BD data"
+              emptyDescription="No closed leads with an assignee in the selected range."
+            />
+          </div>
         </div>
       ) : (
         <BDMessage title="No data" description="No leads matched the selected range." />

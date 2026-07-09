@@ -77,6 +77,16 @@ export function BDCaption({ children }: { children: React.ReactNode }) {
   return <p className="mb-4 text-11 text-tertiary">{children}</p>;
 }
 
+/** Heading that groups related widgets into a labelled section within the panel. */
+export function BDGroupHeading({ title, subtitle }: { title: string; subtitle?: string }) {
+  return (
+    <div className="flex flex-col gap-1 border-b border-subtle pb-2">
+      <h2 className="text-16 font-semibold text-primary">{title}</h2>
+      {subtitle && <p className="text-11 text-tertiary">{subtitle}</p>}
+    </div>
+  );
+}
+
 /** Builds a stable SWR-key fragment from the current date/project selection. */
 export function useBDInsightsKey() {
   const { selectedDuration, selectedStartDate, selectedEndDate, selectedProjects } = useAnalytics();

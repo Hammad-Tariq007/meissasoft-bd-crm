@@ -213,6 +213,8 @@ def build_leads_wins_by_field(
         .annotate(
             leads=Count("id", distinct=True),
             wins=Count("id", filter=Q(state__group="completed"), distinct=True),
+            # closed = won + lost, so a per-slice win rate (wins / closed) can be derived downstream.
+            closed=Count("id", filter=Q(state__group__in=["completed", "cancelled"]), distinct=True),
         )
         .order_by("-leads")
     )
@@ -222,6 +224,8 @@ def build_leads_wins_by_field(
             "name": item[f"{alias}__value_option__name"] or "None",
             "leads": item["leads"],
             "wins": item["wins"],
+            "closed": item["closed"],
+            "win_rate": (round(item["wins"] / item["closed"] * 100, 1) if item["closed"] else None),
         }
         for item in data
     ]
