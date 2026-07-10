@@ -29,6 +29,9 @@ export interface RowData {
   member: IWorkspaceMember;
   role: EUserPermissions;
   is_active: boolean;
+  // Present at runtime because the table casts IWorkspaceMember rows to RowData;
+  // the flag sits on the membership (row), not on the nested user object.
+  can_view_analytics?: boolean;
 }
 
 type NameProps = {
@@ -200,7 +203,7 @@ export const AnalyticsAccessColumn = observer(function AnalyticsAccessColumn(pro
   const [isUpdating, setIsUpdating] = useState(false);
 
   if (rowData.is_active === false) return null;
-  const enabled = !!rowData.member.can_view_analytics;
+  const enabled = !!rowData.can_view_analytics;
 
   return (
     <div className="flex w-32">
