@@ -35,10 +35,10 @@ const STATUS_DOT_COLOR: Record<TUserPresenceStatus, string> = {
 type TMemberRow = { id: string; presence: TUserPresence };
 
 /**
- * Sidebar "Active" section: members currently present (online / away / dnd) in the open
- * project — or, when not inside a project, across the workspace. A pure consumer of the
- * presence store, so it re-renders live as `statusMap` polls in / statuses change. Wrapped
- * in `observer` so the list stays in sync without any manual refetch.
+ * Sidebar "Active" section: present members (online / away / dnd) plus recently-offline
+ * ones, in the open project — or, when not inside a project, across the workspace. A pure
+ * consumer of the presence store, so it re-renders live as `presenceMap` polls in / statuses
+ * change. Wrapped in `observer` so the list stays in sync without any manual refetch.
  */
 export const SidebarActiveMembers = observer(function SidebarActiveMembers() {
   // router params
