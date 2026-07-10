@@ -34,7 +34,7 @@ from rest_framework.response import Response
 
 from plane.app.permissions import ROLE, allow_permission
 from plane.app.views.analytic.advance import AdvanceAnalyticsBaseView
-from plane.db.models import Issue
+from plane.db.models import Issue, Workspace, WorkspaceMember
 from plane.db.models.custom_field import CustomFieldDefinition, CustomFieldType, CustomFieldValue
 from plane.utils.bd_deal_value import DEFAULT_HOURS_PER_WEEK, estimate_deal_value
 from plane.utils.build_chart import build_leads_wins_by_field
@@ -834,8 +834,25 @@ class BDInsightsEndpoint(AdvanceAnalyticsBaseView):
             return None
         return field_id
 
+    def _has_analytics_access(self, request: HttpRequest, slug: str) -> bool:
+        """Compound gate on top of the ADMIN-role decorator: the workspace OWNER
+        always has access; any other (necessarily admin, per the decorator) user
+        needs the additive can_view_analytics flag. This flag is NOT a role — it
+        is granted per-member by the owner alone."""
+        if Workspace.objects.filter(slug=slug, owner=request.user).exists():
+            return True
+        return WorkspaceMember.objects.filter(
+            workspace__slug=slug, member=request.user, is_active=True, can_view_analytics=True
+        ).exists()
+
     @allow_permission([ROLE.ADMIN], level="WORKSPACE")
     def get(self, request: HttpRequest, slug: str) -> Response:
+        # Authoritative gate: workspace admin (decorator) AND (owner OR flag).
+        if not self._has_analytics_access(request, slug):
+            return Response(
+                {"error": "You do not have analytics access for this workspace."},
+                status=status.HTTP_403_FORBIDDEN,
+            )
         self.initialize_workspace(slug, type="chart")
         insight_type = request.GET.get("type", None)
 

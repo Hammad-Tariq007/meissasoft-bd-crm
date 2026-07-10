@@ -204,6 +204,9 @@ class WorkspaceMember(BaseModel):
     )
     role = models.PositiveSmallIntegerField(choices=ROLE_CHOICES, default=5)
     company_role = models.TextField(null=True, blank=True)
+    # Additive per-member flag (NOT a new role tier): grants access to the
+    # admin-only BD Insights analytics. Toggled only by the workspace owner.
+    can_view_analytics = models.BooleanField(default=False)
     view_props = models.JSONField(default=get_default_props)
     default_props = models.JSONField(default=get_default_props)
     issue_props = models.JSONField(default=get_issue_props)

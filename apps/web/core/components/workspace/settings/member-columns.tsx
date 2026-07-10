@@ -6,6 +6,7 @@
 
 import { observer } from "mobx-react";
 import Link from "next/link";
+import { useState } from "react";
 import { Controller, useForm } from "react-hook-form";
 
 import { Disclosure } from "@headlessui/react";
@@ -16,7 +17,7 @@ import { Pill, EPillVariant, EPillSize } from "@plane/propel/pill";
 import { TOAST_TYPE, setToast } from "@plane/propel/toast";
 import type { IUser, IWorkspaceMember } from "@plane/types";
 // plane ui
-import { CustomSelect, PopoverMenu } from "@plane/ui";
+import { CustomSelect, PopoverMenu, ToggleSwitch } from "@plane/ui";
 // helpers
 import { getFileURL } from "@plane/utils";
 // hooks
@@ -39,6 +40,11 @@ type NameProps = {
 };
 
 type AccountTypeProps = {
+  rowData: RowData;
+  workspaceSlug: string;
+};
+
+type AnalyticsAccessProps = {
   rowData: RowData;
   workspaceSlug: string;
 };
@@ -83,21 +89,14 @@ export function NameColumn(props: NameProps) {
                 popoverClassName="justify-end"
                 buttonClassName="outline-none	origin-center rotate-90 size-8 aspect-square flex-shrink-0 grid place-items-center opacity-0 group-hover:opacity-100 transition-opacity"
                 render={() => (
-                  <div
-                    role="button"
-                    tabIndex={0}
+                  <button
+                    type="button"
                     className="flex cursor-pointer items-center gap-x-3"
                     onClick={() => setRemoveMemberModal(rowData)}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter" || e.key === " ") {
-                        e.preventDefault();
-                        setRemoveMemberModal(rowData);
-                      }
-                    }}
                     data-ph-element={MEMBER_TRACKER_ELEMENTS.WORKSPACE_MEMBER_TABLE_CONTEXT_MENU}
                   >
                     <TrashIcon className="size-3.5 align-middle" /> {id === currentUser?.id ? "Leave " : "Remove "}
-                  </div>
+                  </button>
                 )}
               />
             )}
@@ -149,11 +148,11 @@ export const AccountTypeColumn = observer(function AccountTypeColumn(props: Acco
           render={({ field: { value } }) => (
             <CustomSelect
               value={value as EUserPermissions}
-              onChange={async (value: EUserPermissions) => {
+              onChange={async (selectedRole: EUserPermissions) => {
                 if (!workspaceSlug) return;
                 try {
                   await updateMember(workspaceSlug.toString(), rowData.member.id, {
-                    role: value as unknown as EUserPermissions,
+                    role: selectedRole as unknown as EUserPermissions,
                   });
                 } catch (err: unknown) {
                   const error = err as { error?: string | string[] };
@@ -185,5 +184,46 @@ export const AccountTypeColumn = observer(function AccountTypeColumn(props: Acco
         />
       )}
     </>
+  );
+});
+
+/**
+ * Owner-only toggle to grant/revoke a member's BD Insights analytics access.
+ * This column is only ever rendered for the workspace owner (gated in
+ * useMemberColumns), and the server independently enforces owner-only writes.
+ */
+export const AnalyticsAccessColumn = observer(function AnalyticsAccessColumn(props: AnalyticsAccessProps) {
+  const { rowData, workspaceSlug } = props;
+  const {
+    workspace: { updateMemberAnalyticsAccess },
+  } = useMember();
+  const [isUpdating, setIsUpdating] = useState(false);
+
+  if (rowData.is_active === false) return null;
+  const enabled = !!rowData.member.can_view_analytics;
+
+  return (
+    <div className="flex w-32">
+      <ToggleSwitch
+        value={enabled}
+        disabled={isUpdating || !workspaceSlug}
+        onChange={async () => {
+          if (!workspaceSlug) return;
+          setIsUpdating(true);
+          try {
+            await updateMemberAnalyticsAccess(workspaceSlug.toString(), rowData.member.id, !enabled);
+          } catch (err: unknown) {
+            const error = err as { error?: string };
+            setToast({
+              type: TOAST_TYPE.ERROR,
+              title: "Error!",
+              message: error?.error ?? "Could not update analytics access. Please try again.",
+            });
+          } finally {
+            setIsUpdating(false);
+          }
+        }}
+      />
+    </div>
   );
 });

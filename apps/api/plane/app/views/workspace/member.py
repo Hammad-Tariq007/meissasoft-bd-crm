@@ -21,7 +21,7 @@ from plane.app.serializers import (
     WorkSpaceMemberSerializer,
 )
 from plane.app.views.base import BaseAPIView
-from plane.db.models import Project, ProjectMember, WorkspaceMember, DraftIssue
+from plane.db.models import Project, ProjectMember, Workspace, WorkspaceMember, DraftIssue
 from plane.utils.cache import invalidate_cache
 
 from .. import BaseViewSet
@@ -49,7 +49,9 @@ class WorkSpaceMemberViewSet(BaseViewSet):
         # Get all active workspace members
         workspace_members = self.get_queryset()
         if workspace_member.role > 5:
-            serializer = WorkspaceMemberAdminSerializer(workspace_members, fields=("id", "member", "role"), many=True)
+            serializer = WorkspaceMemberAdminSerializer(
+                workspace_members, fields=("id", "member", "role", "can_view_analytics"), many=True
+            )
         else:
             serializer = WorkSpaceMemberSerializer(workspace_members, fields=("id", "member", "role"), many=True)
         return Response(serializer.data, status=status.HTTP_200_OK)
@@ -68,7 +70,7 @@ class WorkSpaceMemberViewSet(BaseViewSet):
             )
 
         if workspace_member.role > ROLE.GUEST.value:
-            serializer = WorkspaceMemberAdminSerializer(member, fields=("id", "member", "role"))
+            serializer = WorkspaceMemberAdminSerializer(member, fields=("id", "member", "role", "can_view_analytics"))
         else:
             serializer = WorkSpaceMemberSerializer(member, fields=("id", "member", "role"))
         return Response(serializer.data, status=status.HTTP_200_OK)
@@ -94,6 +96,36 @@ class WorkSpaceMemberViewSet(BaseViewSet):
             serializer.save()
             return Response(serializer.data, status=status.HTTP_200_OK)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+    @allow_permission(allowed_roles=[ROLE.ADMIN], level="WORKSPACE")
+    def set_analytics_access(self, request, slug, pk):
+        """Grant/revoke a member's BD Insights analytics access. Owner-only —
+        deliberately stricter than the ADMIN decorator: even other workspace
+        admins get 403. `can_view_analytics` is an additive per-member flag, not
+        a role."""
+        if not Workspace.objects.filter(slug=slug, owner=request.user).exists():
+            return Response(
+                {"error": "Only the workspace owner can change analytics access."},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+        workspace_member = WorkspaceMember.objects.filter(
+            pk=pk, workspace__slug=slug, member__is_bot=False, is_active=True
+        ).first()
+        if workspace_member is None:
+            return Response({"error": "Member not found."}, status=status.HTTP_404_NOT_FOUND)
+
+        value = request.data.get("can_view_analytics")
+        if not isinstance(value, bool):
+            return Response(
+                {"error": "`can_view_analytics` (boolean) is required."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        workspace_member.can_view_analytics = value
+        workspace_member.save(update_fields=["can_view_analytics", "updated_at"])
+        serializer = WorkspaceMemberAdminSerializer(
+            workspace_member, fields=("id", "member", "role", "can_view_analytics")
+        )
+        return Response(serializer.data, status=status.HTTP_200_OK)
 
     @allow_permission(allowed_roles=[ROLE.ADMIN], level="WORKSPACE")
     def destroy(self, request, slug, pk):

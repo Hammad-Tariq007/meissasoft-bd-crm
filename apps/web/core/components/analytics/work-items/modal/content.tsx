@@ -6,6 +6,7 @@
 
 import { useEffect, useState } from "react";
 import { observer } from "mobx-react";
+import { useParams } from "next/navigation";
 // plane package imports
 import { EUserPermissions, EUserPermissionsLevel } from "@plane/constants";
 import { Tabs } from "@plane/propel/tabs";
@@ -16,7 +17,8 @@ import { renderFormattedPayloadDate } from "@plane/utils";
 import { DateRangeDropdown } from "@/components/dropdowns/date-range";
 // hooks
 import { useAnalytics } from "@/hooks/store/use-analytics";
-import { useUserPermissions } from "@/hooks/store/user";
+import { useWorkspace } from "@/hooks/store/use-workspace";
+import { useUser, useUserPermissions } from "@/hooks/store/user";
 // plane web components
 import { BDInsightsContent } from "../../bd-insights";
 import DurationDropdown from "../../select/duration";
@@ -46,9 +48,18 @@ export const WorkItemsModalMainContent = observer(function WorkItemsModalMainCon
     selectedEndDate,
     updateSelectedDateRange,
   } = useAnalytics();
-  const { allowPermissions } = useUserPermissions();
-  // BD Insights is admin-only, mirroring the backend gate (workspace ADMIN on advance-analytics-bd).
-  const canViewBDInsights = allowPermissions([EUserPermissions.ADMIN], EUserPermissionsLevel.WORKSPACE);
+  const { workspaceSlug } = useParams();
+  const { allowPermissions, workspaceInfoBySlug } = useUserPermissions();
+  const { data: currentUser } = useUser();
+  const { currentWorkspace } = useWorkspace();
+  // BD Insights access mirrors the backend gate on advance-analytics-bd:
+  // the workspace OWNER always, otherwise a workspace ADMIN who has been granted
+  // the additive per-member can_view_analytics flag (owner-only to toggle).
+  const isWorkspaceAdmin = allowPermissions([EUserPermissions.ADMIN], EUserPermissionsLevel.WORKSPACE);
+  const memberInfo = workspaceSlug ? workspaceInfoBySlug(workspaceSlug.toString()) : undefined;
+  const ownerId = typeof currentWorkspace?.owner === "string" ? currentWorkspace?.owner : currentWorkspace?.owner?.id;
+  const isWorkspaceOwner = !!currentUser?.id && ownerId === currentUser.id;
+  const canViewBDInsights = isWorkspaceOwner || (isWorkspaceAdmin && !!memberInfo?.can_view_analytics);
   const [isModalConfigured, setIsModalConfigured] = useState(false);
   const [selectedTab, setSelectedTab] = useState("overview");
 

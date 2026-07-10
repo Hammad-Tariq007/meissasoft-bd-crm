@@ -153,6 +153,23 @@ export class WorkspaceService extends APIService {
       });
   }
 
+  // Owner-only: grant/revoke a member's BD Insights analytics access. Distinct
+  // endpoint from updateWorkspaceMember because it is authorized for the
+  // workspace owner alone, not any admin.
+  async updateWorkspaceMemberAnalyticsAccess(
+    workspaceSlug: string,
+    memberId: string,
+    canViewAnalytics: boolean
+  ): Promise<IWorkspaceMember> {
+    return this.patch(`/api/workspaces/${workspaceSlug}/members/${memberId}/analytics-access/`, {
+      can_view_analytics: canViewAnalytics,
+    })
+      .then((response) => response?.data)
+      .catch((error) => {
+        throw error?.response?.data;
+      });
+  }
+
   async deleteWorkspaceMember(workspaceSlug: string, memberId: string): Promise<any> {
     return this.delete(`/api/workspaces/${workspaceSlug}/members/${memberId}/`)
       .then((response) => response?.data)

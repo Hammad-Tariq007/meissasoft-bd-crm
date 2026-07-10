@@ -112,6 +112,11 @@ urlpatterns = [
         name="workspace-member",
     ),
     path(
+        "workspaces/<str:slug>/members/<uuid:pk>/analytics-access/",
+        WorkSpaceMemberViewSet.as_view({"patch": "set_analytics_access"}),
+        name="workspace-member-analytics-access",
+    ),
+    path(
         "workspaces/<str:slug>/members/leave/",
         WorkSpaceMemberViewSet.as_view({"post": "leave"}),
         name="leave-workspace-members",

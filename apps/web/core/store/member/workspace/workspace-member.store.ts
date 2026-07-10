@@ -27,6 +27,7 @@ export interface IWorkspaceMembership {
   member: string;
   role: EUserPermissions;
   is_active?: boolean;
+  can_view_analytics?: boolean;
 }
 
 export interface IWorkspaceMemberStore {
@@ -51,6 +52,7 @@ export interface IWorkspaceMemberStore {
   fetchWorkspaceMemberInvitations: (workspaceSlug: string) => Promise<IWorkspaceMemberInvitation[]>;
   // crud actions
   updateMember: (workspaceSlug: string, userId: string, data: { role: EUserPermissions }) => Promise<void>;
+  updateMemberAnalyticsAccess: (workspaceSlug: string, userId: string, canViewAnalytics: boolean) => Promise<void>;
   removeMemberFromWorkspace: (workspaceSlug: string, userId: string) => Promise<void>;
   // invite actions
   inviteMembersToWorkspace: (workspaceSlug: string, data: IWorkspaceBulkInviteFormData) => Promise<void>;
@@ -90,6 +92,7 @@ export class WorkspaceMemberStore implements IWorkspaceMemberStore {
       // actions
       fetchWorkspaceMembers: action,
       updateMember: action,
+      updateMemberAnalyticsAccess: action,
       removeMemberFromWorkspace: action,
       fetchWorkspaceMemberInvitations: action,
       updateMemberInvitation: action,
@@ -210,6 +213,7 @@ export class WorkspaceMemberStore implements IWorkspaceMemberStore {
       role: workspaceMember.role,
       member: this.memberRoot?.memberMap?.[workspaceMember.member],
       is_active: workspaceMember.is_active,
+      can_view_analytics: workspaceMember.can_view_analytics,
     };
     return memberDetails;
   });
@@ -243,6 +247,7 @@ export class WorkspaceMemberStore implements IWorkspaceMemberStore {
             member: member.member.id,
             role: member.role,
             is_active: member.is_active,
+            can_view_analytics: member.can_view_analytics,
           });
         });
       });
@@ -275,6 +280,34 @@ export class WorkspaceMemberStore implements IWorkspaceMemberStore {
   };
 
   /**
+   * @description grant/revoke a member's BD Insights analytics access (owner-only server-side)
+   * @param workspaceSlug
+   * @param userId
+   * @param canViewAnalytics
+   */
+  updateMemberAnalyticsAccess = async (workspaceSlug: string, userId: string, canViewAnalytics: boolean) => {
+    const memberDetails = this.getWorkspaceMemberDetails(userId);
+    if (!memberDetails) throw new Error("Member not found");
+    const previous = this.workspaceMemberMap?.[workspaceSlug]?.[userId]?.can_view_analytics;
+    try {
+      runInAction(() => {
+        set(this.workspaceMemberMap, [workspaceSlug, userId, "can_view_analytics"], canViewAnalytics);
+      });
+      await this.workspaceService.updateWorkspaceMemberAnalyticsAccess(
+        workspaceSlug,
+        memberDetails.id,
+        canViewAnalytics
+      );
+    } catch (error) {
+      // revert on error (e.g. a non-owner is rejected with 403)
+      runInAction(() => {
+        set(this.workspaceMemberMap, [workspaceSlug, userId, "can_view_analytics"], previous);
+      });
+      throw error;
+    }
+  };
+
+  /**
    * @description remove a member from workspace
    * @param workspaceSlug
    * @param userId
@@ -282,10 +315,9 @@ export class WorkspaceMemberStore implements IWorkspaceMemberStore {
   removeMemberFromWorkspace = async (workspaceSlug: string, userId: string) => {
     const memberDetails = this.getWorkspaceMemberDetails(userId);
     if (!memberDetails) throw new Error("Member not found");
-    await this.workspaceService.deleteWorkspaceMember(workspaceSlug, memberDetails?.id).then(() => {
-      runInAction(() => {
-        set(this.workspaceMemberMap, [workspaceSlug, userId, "is_active"], false);
-      });
+    await this.workspaceService.deleteWorkspaceMember(workspaceSlug, memberDetails.id);
+    runInAction(() => {
+      set(this.workspaceMemberMap, [workspaceSlug, userId, "is_active"], false);
     });
   };
 
@@ -323,7 +355,7 @@ export class WorkspaceMemberStore implements IWorkspaceMemberStore {
     invitationId: string,
     data: Partial<IWorkspaceMemberInvitation>
   ) => {
-    const originalMemberInvitations = [...this.workspaceMemberInvitations?.[workspaceSlug]]; // in case of error, we will revert back to original members
+    const originalMemberInvitations = [...(this.workspaceMemberInvitations?.[workspaceSlug] ?? [])]; // in case of error, we will revert back to original members
     try {
       const memberInvitations = originalMemberInvitations?.map((invitation) => ({
         ...invitation,
@@ -348,14 +380,14 @@ export class WorkspaceMemberStore implements IWorkspaceMemberStore {
    * @param workspaceSlug
    * @param memberId
    */
-  deleteMemberInvitation = async (workspaceSlug: string, invitationId: string) =>
-    await this.workspaceService.deleteWorkspaceInvitations(workspaceSlug.toString(), invitationId).then(() => {
-      runInAction(() => {
-        this.workspaceMemberInvitations[workspaceSlug] = this.workspaceMemberInvitations[workspaceSlug].filter(
-          (inv) => inv.id !== invitationId
-        );
-      });
+  deleteMemberInvitation = async (workspaceSlug: string, invitationId: string) => {
+    await this.workspaceService.deleteWorkspaceInvitations(workspaceSlug.toString(), invitationId);
+    runInAction(() => {
+      this.workspaceMemberInvitations[workspaceSlug] = this.workspaceMemberInvitations[workspaceSlug].filter(
+        (inv) => inv.id !== invitationId
+      );
     });
+  };
 
   isUserSuspended = computedFn((userId: string, workspaceSlug: string) => {
     if (!workspaceSlug) return false;

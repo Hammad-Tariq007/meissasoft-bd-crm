@@ -92,6 +92,8 @@ export interface IWorkspaceMember {
   display_name?: string;
   last_login_medium?: TLoginMediums;
   is_active?: boolean;
+  // Owner-granted flag controlling BD Insights analytics access (shown to the owner only).
+  can_view_analytics?: boolean;
 }
 
 export interface IWorkspaceMemberMe {
@@ -107,6 +109,8 @@ export interface IWorkspaceMemberMe {
   view_props: IWorkspaceViewProps;
   workspace: string;
   draft_issue_count: number;
+  // Additive per-member flag (not a role): grants access to BD Insights analytics.
+  can_view_analytics?: boolean;
 }
 
 export interface ILastActiveWorkspaceDetails {

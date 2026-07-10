@@ -11,10 +11,13 @@ import { useTranslation } from "@plane/i18n";
 import { renderFormattedDate } from "@plane/utils";
 import { MemberHeaderColumn } from "@/components/project/member-header-column";
 import type { RowData } from "@/components/workspace/settings/member-columns";
-import { AccountTypeColumn, NameColumn } from "@/components/workspace/settings/member-columns";
+import { AccountTypeColumn, AnalyticsAccessColumn, NameColumn } from "@/components/workspace/settings/member-columns";
 import { useMember } from "@/hooks/store/use-member";
+import { useWorkspace } from "@/hooks/store/use-workspace";
 import { useUser, useUserPermissions } from "@/hooks/store/user";
 import type { IMemberFilters } from "@/store/member/utils";
+
+const isSuspended = (rowData: RowData) => rowData.is_active === false;
 
 export const useMemberColumns = () => {
   // states
@@ -24,6 +27,7 @@ export const useMemberColumns = () => {
 
   const { data: currentUser } = useUser();
   const { allowPermissions } = useUserPermissions();
+  const { currentWorkspace } = useWorkspace();
   const {
     workspace: {
       filtersStore: { filters, updateFilters },
@@ -33,8 +37,9 @@ export const useMemberColumns = () => {
 
   // derived values
   const isAdmin = allowPermissions([EUserPermissions.ADMIN], EUserPermissionsLevel.WORKSPACE);
-
-  const isSuspended = (rowData: RowData) => rowData.is_active === false;
+  // The analytics-access toggle is owner-only: only the workspace owner may grant/revoke it.
+  const ownerId = typeof currentWorkspace?.owner === "string" ? currentWorkspace?.owner : currentWorkspace?.owner?.id;
+  const isWorkspaceOwner = !!currentUser?.id && ownerId === currentUser.id;
 
   // handlers
   const handleDisplayFilterUpdate = (filterUpdates: Partial<IMemberFilters>) => {
@@ -131,6 +136,18 @@ export const useMemberColumns = () => {
         />
       ),
     },
+    // Owner-only column: grant/revoke BD Insights analytics access per member.
+    // Hidden entirely (not just disabled) for everyone who isn't the workspace owner.
+    ...(isWorkspaceOwner
+      ? [
+          {
+            key: "Analytics access",
+            content: "Analytics access",
+            thClassName: "text-left",
+            tdRender: (rowData: RowData) => <AnalyticsAccessColumn rowData={rowData} workspaceSlug={workspaceSlug} />,
+          },
+        ]
+      : []),
   ];
   return { columns, workspaceSlug, removeMemberModal, setRemoveMemberModal };
 };
