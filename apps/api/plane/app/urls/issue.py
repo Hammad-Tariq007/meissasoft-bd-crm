@@ -159,6 +159,11 @@ urlpatterns = [
         name="project-issue-comment",
     ),
     path(
+        "workspaces/<str:slug>/projects/<uuid:project_id>/issues/<uuid:issue_id>/comments/viewed/",
+        IssueCommentViewSet.as_view({"post": "mark_viewed"}),
+        name="project-issue-comment-viewed",
+    ),
+    path(
         "workspaces/<str:slug>/projects/<uuid:project_id>/issues/<uuid:issue_id>/comments/<uuid:pk>/",
         IssueCommentViewSet.as_view(
             {
@@ -169,6 +174,11 @@ urlpatterns = [
             }
         ),
         name="project-issue-comment",
+    ),
+    path(
+        "workspaces/<str:slug>/projects/<uuid:project_id>/issues/<uuid:issue_id>/comments/<uuid:pk>/info/",
+        IssueCommentViewSet.as_view({"get": "info"}),
+        name="project-issue-comment-info",
     ),
     ## End IssueComments
     # Issue Subscribers

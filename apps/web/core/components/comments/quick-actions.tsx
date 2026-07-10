@@ -4,9 +4,9 @@
  * See the LICENSE file for details.
  */
 
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { observer } from "mobx-react";
-import { MoreHorizontal } from "lucide-react";
+import { Info, MoreHorizontal } from "lucide-react";
 // plane imports
 import { EIssueCommentAccessSpecifier } from "@plane/constants";
 import { useTranslation } from "@plane/i18n";
@@ -16,6 +16,8 @@ import type { TIssueComment, TCommentsOperations } from "@plane/types";
 import type { TContextMenuItem } from "@plane/ui";
 import { CustomMenu } from "@plane/ui";
 import { cn } from "@plane/utils";
+// components
+import { CommentInfoModal } from "@/components/comments/comment-info-modal";
 // hooks
 import { useUser } from "@/hooks/store/user";
 
@@ -31,6 +33,8 @@ export const CommentQuickActions = observer(function CommentQuickActions(props: 
   const { activityOperations, comment, setEditMode, showAccessSpecifier, showCopyLinkOption } = props;
   // store hooks
   const { data: currentUser } = useUser();
+  // local state
+  const [isInfoModalOpen, setIsInfoModalOpen] = useState(false);
   // derived values
   const isAuthor = currentUser?.id === comment.actor;
   const canEdit = isAuthor;
@@ -47,6 +51,14 @@ export const CommentQuickActions = observer(function CommentQuickActions(props: 
           title: t("common.actions.edit"),
           icon: EditIcon,
           shouldRender: canEdit,
+        },
+        {
+          // Read-receipts. Author-only in the UI; the backend also enforces author-only (403).
+          key: "info",
+          action: () => setIsInfoModalOpen(true),
+          title: "Info",
+          icon: Info,
+          shouldRender: isAuthor,
         },
         {
           key: "copy_link",
@@ -80,43 +92,53 @@ export const CommentQuickActions = observer(function CommentQuickActions(props: 
         },
       ];
     },
-    [t, setEditMode, canEdit, showCopyLinkOption, activityOperations, comment, showAccessSpecifier, canDelete]
+    [t, setEditMode, canEdit, isAuthor, showCopyLinkOption, activityOperations, comment, showAccessSpecifier, canDelete]
   );
 
   return (
-    <CustomMenu customButton={<IconButton icon={MoreHorizontal} variant="ghost" size="sm" />} closeOnSelect>
-      {MENU_ITEMS.map((item) => {
-        if (item.shouldRender === false) return null;
+    <>
+      {isAuthor && (
+        <CommentInfoModal
+          isOpen={isInfoModalOpen}
+          onClose={() => setIsInfoModalOpen(false)}
+          comment={comment}
+          activityOperations={activityOperations}
+        />
+      )}
+      <CustomMenu customButton={<IconButton icon={MoreHorizontal} variant="ghost" size="sm" />} closeOnSelect>
+        {MENU_ITEMS.map((item) => {
+          if (item.shouldRender === false) return null;
 
-        return (
-          <CustomMenu.MenuItem
-            key={item.key}
-            onClick={() => item.action()}
-            className={cn(
-              "flex items-center gap-2",
-              {
-                "text-placeholder": item.disabled,
-              },
-              item.className
-            )}
-            disabled={item.disabled}
-          >
-            {item.icon && <item.icon className={cn("size-3 shrink-0", item.iconClassName)} />}
-            <div>
-              <h5>{item.title}</h5>
-              {item.description && (
-                <p
-                  className={cn("whitespace-pre-line text-tertiary", {
-                    "text-placeholder": item.disabled,
-                  })}
-                >
-                  {item.description}
-                </p>
+          return (
+            <CustomMenu.MenuItem
+              key={item.key}
+              onClick={() => item.action()}
+              className={cn(
+                "flex items-center gap-2",
+                {
+                  "text-placeholder": item.disabled,
+                },
+                item.className
               )}
-            </div>
-          </CustomMenu.MenuItem>
-        );
-      })}
-    </CustomMenu>
+              disabled={item.disabled}
+            >
+              {item.icon && <item.icon className={cn("size-3 shrink-0", item.iconClassName)} />}
+              <div>
+                <h5>{item.title}</h5>
+                {item.description && (
+                  <p
+                    className={cn("whitespace-pre-line text-tertiary", {
+                      "text-placeholder": item.disabled,
+                    })}
+                  >
+                    {item.description}
+                  </p>
+                )}
+              </div>
+            </CustomMenu.MenuItem>
+          );
+        })}
+      </CustomMenu>
+    </>
   );
 });

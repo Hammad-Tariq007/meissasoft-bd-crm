@@ -64,6 +64,10 @@ export type TCommentsOperations = {
     | undefined;
   userReactions: (commentId: string) => string[] | undefined;
   getReactionUsers: (reaction: string, reactionIds: Record<string, string[]>) => string;
+  // Read-receipts: record that the current user viewed the thread (debounced by the caller),
+  // and — author only — fetch who has seen a given comment and when.
+  markViewed?: () => Promise<void>;
+  getCommentInfo?: (commentId: string) => Promise<{ total: number; seen_by: { member_id: string; seen_at: string }[] }>;
 };
 
 export type TIssueCommentMap = {

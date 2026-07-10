@@ -12,6 +12,10 @@ import { EIssueServiceType } from "@plane/types";
 import { APIService } from "@/services/api.service";
 import { FileUploadService } from "@/services/file-upload.service";
 
+/** A single member's read-receipt for a comment: who saw it and when (ISO string). */
+export type TCommentSeenBy = { member_id: string; seen_at: string };
+export type TCommentInfoResponse = { total: number; seen_by: TCommentSeenBy[] };
+
 export class IssueCommentService extends APIService {
   private fileUploadService: FileUploadService;
   private serviceType: TIssueServiceType;
@@ -71,6 +75,35 @@ export class IssueCommentService extends APIService {
     return this.patch(
       `/api/workspaces/${workspaceSlug}/projects/${projectId}/${this.serviceType}/${issueId}/comments/${commentId}/`,
       data
+    )
+      .then((response) => response?.data)
+      .catch((error) => {
+        throw error?.response?.data;
+      });
+  }
+
+  /** Record that the current user has viewed this work item's comment thread (read-receipts).
+   *  Fire debounced from the client — on thread-visible and when new comments arrive. */
+  async markCommentsViewed(workspaceSlug: string, projectId: string, issueId: string): Promise<void> {
+    return this.post(
+      `/api/workspaces/${workspaceSlug}/projects/${projectId}/${this.serviceType}/${issueId}/comments/viewed/`,
+      {}
+    )
+      .then((response) => response?.data)
+      .catch((error) => {
+        throw error?.response?.data;
+      });
+  }
+
+  /** Author-only: who has seen a specific comment and when. Returns 403 for non-authors. */
+  async getCommentInfo(
+    workspaceSlug: string,
+    projectId: string,
+    issueId: string,
+    commentId: string
+  ): Promise<TCommentInfoResponse> {
+    return this.get(
+      `/api/workspaces/${workspaceSlug}/projects/${projectId}/${this.serviceType}/${issueId}/comments/${commentId}/info/`
     )
       .then((response) => response?.data)
       .catch((error) => {

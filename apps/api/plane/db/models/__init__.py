@@ -35,6 +35,7 @@ from .issue import (
     IssueAssignee,
     IssueBlocker,
     IssueComment,
+    IssueCommentVisit,
     IssueLabel,
     IssueLink,
     IssueMention,

@@ -643,6 +643,36 @@ class CommentReaction(ProjectBaseModel):
         return f"{self.issue.name} {self.actor.email}"
 
 
+class IssueCommentVisit(ProjectBaseModel):
+    """Per-user, per-work-item "comments last viewed at" — the durable read-state behind
+    the comment ⋯ → Info (read-receipts) panel. A comment counts as SEEN by a user when
+    that user's viewed_at is at/after the comment's created_at. Thread-level (Approach A):
+    one row per (issue, user), upserted when the user's comment/activity thread is viewed."""
+
+    issue = models.ForeignKey(Issue, on_delete=models.CASCADE, related_name="comment_visits")
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="issue_comment_visits"
+    )
+    viewed_at = models.DateTimeField()
+
+    class Meta:
+        unique_together = ["issue", "user", "deleted_at"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["issue", "user"],
+                condition=models.Q(deleted_at__isnull=True),
+                name="issue_comment_visit_unique_issue_user_when_deleted_at_null",
+            )
+        ]
+        verbose_name = "Issue Comment Visit"
+        verbose_name_plural = "Issue Comment Visits"
+        db_table = "issue_comment_visits"
+        ordering = ("-viewed_at",)
+
+    def __str__(self):
+        return f"{self.issue_id} {self.user_id}"
+
+
 class IssueVote(ProjectBaseModel):
     issue = models.ForeignKey(Issue, on_delete=models.CASCADE, related_name="votes")
     actor = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="votes")

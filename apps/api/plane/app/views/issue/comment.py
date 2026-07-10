@@ -19,7 +19,7 @@ from rest_framework import status
 from .. import BaseViewSet
 from plane.app.serializers import IssueCommentSerializer, CommentReactionSerializer
 from plane.app.permissions import allow_permission, ROLE
-from plane.db.models import IssueComment, ProjectMember, CommentReaction, Project, Issue
+from plane.db.models import IssueComment, IssueCommentVisit, ProjectMember, CommentReaction, Project, Issue
 from plane.bgtasks.issue_activities_task import issue_activity
 from plane.utils.host import base_host
 from plane.bgtasks.webhook_task import model_activity
@@ -158,6 +158,49 @@ class IssueCommentViewSet(BaseViewSet):
             origin=base_host(request=request, is_app=True),
         )
         return Response(status=status.HTTP_204_NO_CONTENT)
+
+    @allow_permission([ROLE.ADMIN, ROLE.MEMBER, ROLE.GUEST])
+    def mark_viewed(self, request, slug, project_id, issue_id):
+        """Record that the requesting user has viewed this work item's comment thread.
+        Fired by the client (debounced) when the thread becomes visible / new comments
+        arrive — this is the read signal behind comment read-receipts (Info). Idempotent
+        upsert; a short server-side throttle guards against write-amplification."""
+        now = timezone.now()
+        workspace_id = Project.objects.values_list("workspace_id", flat=True).get(pk=project_id)
+        existing = IssueCommentVisit.objects.filter(issue_id=issue_id, user=request.user).first()
+        if existing and existing.viewed_at and (now - existing.viewed_at).total_seconds() < 10:
+            return Response(status=status.HTTP_204_NO_CONTENT)  # updated a moment ago -> skip write
+        IssueCommentVisit.objects.update_or_create(
+            issue_id=issue_id,
+            user=request.user,
+            defaults={"viewed_at": now, "project_id": project_id, "workspace_id": workspace_id},
+        )
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
+    @allow_permission([ROLE.ADMIN, ROLE.MEMBER, ROLE.GUEST])
+    def info(self, request, slug, project_id, issue_id, pk):
+        """Read-receipts for a single comment: which members have seen it and when.
+        AUTHOR-ONLY and enforced here (not just in the UI) — a non-author gets 403.
+        'Seen' = the member viewed this work item's comment thread at/after the comment
+        was posted (viewed_at >= comment.created_at)."""
+        comment = IssueComment.objects.filter(
+            workspace__slug=slug, project_id=project_id, issue_id=issue_id, pk=pk
+        ).first()
+        if comment is None:
+            return Response({"error": "Comment not found"}, status=status.HTTP_404_NOT_FOUND)
+        if comment.actor_id != request.user.id:
+            return Response(
+                {"error": "You can only view info for your own comments."},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+        visits = (
+            IssueCommentVisit.objects.filter(issue_id=issue_id, viewed_at__gte=comment.created_at)
+            .exclude(user_id=comment.actor_id)
+            .values("user_id", "viewed_at")
+            .order_by("-viewed_at")
+        )
+        seen_by = [{"member_id": str(v["user_id"]), "seen_at": v["viewed_at"]} for v in visits]
+        return Response({"total": len(seen_by), "seen_by": seen_by}, status=status.HTTP_200_OK)
 
 
 class CommentReactionViewSet(BaseViewSet):

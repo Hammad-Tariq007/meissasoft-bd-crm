@@ -4,6 +4,7 @@
  * See the LICENSE file for details.
  */
 
+import { useCallback, useEffect, useRef } from "react";
 import { observer } from "mobx-react";
 // plane imports
 import type { E_SORT_ORDER, TActivityFilters, EActivityFilterType } from "@plane/constants";
@@ -52,6 +53,47 @@ export const IssueActivityCommentRoot = observer(function IssueActivityCommentRo
   // derived values
   const activityAndComments = getActivityAndCommentsByIssueId(issueId, sortOrder);
 
+  // ---- read-receipts: report this comment thread as "seen", debounced ----
+  // Fire one POST when the thread is on screen (IntersectionObserver) and again when the
+  // comment count changes while visible. Never per-render/scroll; skipped when the tab is
+  // hidden. Hooks must run before the early returns below.
+  const rootRef = useRef<HTMLDivElement>(null);
+  const isVisibleRef = useRef(false);
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const commentCount = (activityAndComments ?? []).filter((item) => item.activity_type === "COMMENT").length;
+
+  const scheduleMarkViewed = useCallback(() => {
+    if (!activityOperations.markViewed) return;
+    if (typeof document !== "undefined" && document.visibilityState === "hidden") return;
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(() => {
+      void activityOperations.markViewed?.();
+    }, 1500);
+  }, [activityOperations]);
+
+  useEffect(() => {
+    const el = rootRef.current;
+    if (!el || typeof IntersectionObserver === "undefined") return;
+    const visibilityObserver = new IntersectionObserver(
+      (entries) => {
+        const visible = entries.some((entry) => entry.isIntersecting);
+        isVisibleRef.current = visible;
+        if (visible) scheduleMarkViewed();
+      },
+      { threshold: 0.1 }
+    );
+    visibilityObserver.observe(el);
+    return () => {
+      visibilityObserver.disconnect();
+      if (debounceRef.current) clearTimeout(debounceRef.current);
+    };
+  }, [scheduleMarkViewed]);
+
+  // re-report when new comments land while the thread is on screen
+  useEffect(() => {
+    if (isVisibleRef.current) scheduleMarkViewed();
+  }, [commentCount, scheduleMarkViewed]);
+
   if (!activityAndComments) return <IssueActivityLoader />;
 
   if (activityAndComments.length <= 0) return null;
@@ -59,7 +101,7 @@ export const IssueActivityCommentRoot = observer(function IssueActivityCommentRo
   const filteredActivityAndComments = filterActivityOnSelectedFilters(activityAndComments, selectedFilters);
 
   return (
-    <div>
+    <div ref={rootRef}>
       {filteredActivityAndComments.map((activityComment, index) => {
         const comment = getCommentById(activityComment.id);
         return activityComment.activity_type === "COMMENT" ? (

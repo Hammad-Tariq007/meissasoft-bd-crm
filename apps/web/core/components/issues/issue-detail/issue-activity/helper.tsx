@@ -15,6 +15,9 @@ import { useIssueDetail } from "@/hooks/store/use-issue-detail";
 import { useMember } from "@/hooks/store/use-member";
 import { useProject } from "@/hooks/store/use-project";
 import { useUser } from "@/hooks/store/user";
+import { IssueCommentService } from "@/services/issue/issue_comment.service";
+
+const commentService = new IssueCommentService();
 
 export const useWorkItemCommentOperations = (
   workspaceSlug: string | undefined,
@@ -55,13 +58,13 @@ export const useWorkItemCommentOperations = (
             sequenceId: issueDetails.sequence_id,
           });
           const commentLink = `${workItemLink}#comment-${id}`;
-          copyUrlToClipboard(commentLink).then(() => {
+          void copyUrlToClipboard(commentLink).then(() =>
             setToast({
               title: t("common.success"),
               type: TOAST_TYPE.SUCCESS,
               message: t("issue.comments.copy_link.success"),
-            });
-          });
+            })
+          );
         } catch (error) {
           console.error("Error in copying comment link:", error);
           setToast({
@@ -123,6 +126,15 @@ export const useWorkItemCommentOperations = (
           });
         }
       },
+      markViewed: async () => {
+        if (!workspaceSlug || !projectId || !issueId) return;
+        // best-effort read-receipt; caller debounces, so failures just retry on the next signal
+        await commentService.markCommentsViewed(workspaceSlug, projectId, issueId).catch(() => {});
+      },
+      getCommentInfo: async (commentId) => {
+        if (!workspaceSlug || !projectId || !issueId) throw new Error("Missing fields");
+        return commentService.getCommentInfo(workspaceSlug, projectId, issueId, commentId);
+      },
       uploadCommentAsset: async (blockId, file, commentId) => {
         try {
           if (!workspaceSlug || !projectId) throw new Error("Missing fields");
@@ -139,7 +151,7 @@ export const useWorkItemCommentOperations = (
           return res;
         } catch (error) {
           console.log("Error in uploading comment asset:", error);
-          throw new Error(t("issue.comments.upload.error"));
+          throw new Error(t("issue.comments.upload.error"), { cause: error });
         }
       },
       duplicateCommentAsset: async (assetId, commentId) => {
@@ -210,6 +222,8 @@ export const useWorkItemCommentOperations = (
       },
     };
     return ops;
+    // deps intentionally curated to keep the operations object stable across renders
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [workspaceSlug, projectId, issueId, createComment, updateComment, uploadEditorAsset, removeComment]);
 
   return operations;
