@@ -5,7 +5,7 @@
  */
 
 import { API_BASE_URL } from "@plane/constants";
-import type { TPresenceManualStatus, TUserPresenceStatus } from "@plane/types";
+import type { TPresenceManualStatus, TUserPresence } from "@plane/types";
 // services
 import { APIService } from "./api.service";
 
@@ -22,8 +22,9 @@ type THeartbeatResponse = {
 };
 
 type TPresenceResponse = {
-  // present users only; offline users are omitted (absence == offline)
-  statuses: Record<string, Exclude<TUserPresenceStatus, "offline">>;
+  // one entry per user with a durable trail — INCLUDING offline users (each carries
+  // last_seen/last_active). A live "appear offline" user is omitted entirely.
+  statuses: Record<string, TUserPresence>;
 };
 
 export class PresenceService extends APIService {

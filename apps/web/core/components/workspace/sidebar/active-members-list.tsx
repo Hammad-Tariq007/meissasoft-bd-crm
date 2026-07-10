@@ -11,24 +11,28 @@ import { useParams } from "next/navigation";
 // plane imports
 import { ChevronRightIcon } from "@plane/propel/icons";
 import { IconButton } from "@plane/propel/icon-button";
-import type { TUserPresenceStatus } from "@plane/types";
+import type { TUserPresence, TUserPresenceStatus } from "@plane/types";
 import { cn, getFileURL } from "@plane/utils";
 // components
 import { UserAvatar } from "@/components/common/user-avatar";
+// helpers
+import { getPresenceLabel } from "@/helpers/presence.helper";
 // hooks
 import { useMember } from "@/hooks/store/use-member";
 import { usePresence } from "@/hooks/store/use-presence";
 
-// online first, then away, then dnd (offline members are filtered out entirely)
-const STATUS_ORDER: Record<TUserPresenceStatus, number> = { online: 0, away: 1, dnd: 2, offline: 9 };
+// online first, then away, then dnd, then offline last
+const STATUS_ORDER: Record<TUserPresenceStatus, number> = { online: 0, away: 1, dnd: 2, offline: 3 };
 
-// status -> dot color, mirrors the avatar indicator (offline never renders here)
+// status -> dot color, mirrors the avatar indicator (offline shows no colored dot)
 const STATUS_DOT_COLOR: Record<TUserPresenceStatus, string> = {
   online: "#22c55e",
   away: "#f59e0b",
   dnd: "#ef4444",
   offline: "transparent",
 };
+
+type TMemberRow = { id: string; presence: TUserPresence };
 
 /**
  * Sidebar "Active" section: members currently present (online / away / dnd) in the open
@@ -47,22 +51,62 @@ export const SidebarActiveMembers = observer(function SidebarActiveMembers() {
     workspace: { workspaceMemberIds },
     project: { getProjectMemberIds },
   } = useMember();
-  const { getUserStatus } = usePresence();
+  const { getUserPresence } = usePresence();
 
   const memberIds = (projectId ? getProjectMemberIds(projectId.toString(), true) : workspaceMemberIds) ?? [];
-  const present = memberIds
-    .map((id) => ({ id, status: getUserStatus(id) }))
-    .filter((member) => member.status !== "offline");
-  // `present` is a fresh array (map/filter), so the in-place sort is safe.
-  // eslint-disable-next-line unicorn/no-array-sort
-  present.sort((a, b) => {
-    const byStatus = STATUS_ORDER[a.status] - STATUS_ORDER[b.status];
-    if (byStatus !== 0) return byStatus;
-    return (getUserDetails(a.id)?.display_name ?? "").localeCompare(getUserDetails(b.id)?.display_name ?? "");
-  });
+  // Only members with a durable presence trail appear (active OR recently offline);
+  // members never seen are omitted.
+  const rows: TMemberRow[] = memberIds
+    .map((id) => ({ id, presence: getUserPresence(id) }))
+    .filter((row): row is TMemberRow => !!row.presence);
 
-  // nothing to show yet (before the first poll, or truly no one present) -> hide the section
-  if (present.length === 0) return null;
+  const nameOf = (id: string) => getUserDetails(id)?.display_name ?? getUserDetails(id)?.email ?? "";
+
+  // active = online/away/dnd, ordered online -> away -> dnd then name.
+  // `rows` derivatives are fresh arrays, so the in-place sorts are safe.
+  const active = rows.filter((r) => r.presence.status !== "offline");
+  // eslint-disable-next-line unicorn/no-array-sort
+  active.sort((a, b) => {
+    const byStatus = STATUS_ORDER[a.presence.status] - STATUS_ORDER[b.presence.status];
+    return byStatus !== 0 ? byStatus : nameOf(a.id).localeCompare(nameOf(b.id));
+  });
+  // offline members, most-recently-seen first.
+  const offline = rows.filter((r) => r.presence.status === "offline");
+  // eslint-disable-next-line unicorn/no-array-sort
+  offline.sort((a, b) => (b.presence.last_seen ?? 0) - (a.presence.last_seen ?? 0));
+
+  // nothing to show yet (before the first poll, or no one ever seen) -> hide the section
+  if (active.length === 0 && offline.length === 0) return null;
+
+  const renderRow = ({ id, presence }: TMemberRow, muted: boolean) => {
+    const userDetails = getUserDetails(id);
+    return (
+      <div
+        key={id}
+        className={cn(
+          "flex items-center gap-2 rounded-sm px-2 py-1 hover:bg-layer-transparent-hover",
+          muted ? "opacity-60" : ""
+        )}
+      >
+        <UserAvatar
+          userId={id}
+          src={getFileURL(userDetails?.avatar_url ?? "")}
+          name={userDetails?.display_name}
+          size="sm"
+        />
+        <div className="flex min-w-0 flex-grow flex-col">
+          <span className="truncate text-13 text-secondary">
+            {userDetails?.display_name ?? userDetails?.email ?? "Unknown"}
+          </span>
+          <span className="truncate text-11 text-placeholder">{getPresenceLabel(presence)}</span>
+        </div>
+        <span
+          className="mr-1.5 size-2 flex-shrink-0 rounded-full"
+          style={{ backgroundColor: STATUS_DOT_COLOR[presence.status] }}
+        />
+      </div>
+    );
+  };
 
   return (
     <Disclosure as="div" className="flex flex-col" defaultOpen={isOpen}>
@@ -74,7 +118,7 @@ export const SidebarActiveMembers = observer(function SidebarActiveMembers() {
           onClick={() => setIsOpen((prev) => !prev)}
         >
           <span className="text-13 font-semibold">Active</span>
-          <span className="text-11 font-medium text-placeholder">{present.length}</span>
+          <span className="text-11 font-medium text-placeholder">{active.length}</span>
         </Disclosure.Button>
         <IconButton
           variant="ghost"
@@ -95,31 +139,14 @@ export const SidebarActiveMembers = observer(function SidebarActiveMembers() {
         leaveTo="transform scale-95 opacity-0"
       >
         <Disclosure.Panel as="div" className="flex flex-col gap-0.5" static>
-          {present.map(({ id, status }) => {
-            const userDetails = getUserDetails(id);
-            return (
-              <div
-                key={id}
-                className="flex items-center gap-2 rounded-sm px-2 py-1 text-13 text-secondary hover:bg-layer-transparent-hover"
-              >
-                <UserAvatar
-                  userId={id}
-                  src={getFileURL(userDetails?.avatar_url ?? "")}
-                  name={userDetails?.display_name}
-                  size="sm"
-                />
-                <span className="min-w-0 flex-grow truncate">
-                  {userDetails?.display_name ?? userDetails?.email ?? "Unknown"}
-                </span>
-                {/* live status dot, aligned under the section collapse arrow (mr offsets the
-                    arrow's IconButton half-width so the dot centers beneath it) */}
-                <span
-                  className="mr-1.5 size-2 flex-shrink-0 rounded-full"
-                  style={{ backgroundColor: STATUS_DOT_COLOR[status] }}
-                />
-              </div>
-            );
-          })}
+          {active.map((row) => renderRow(row, false))}
+          {/* keep offline members below a subtle divider, greyed, most-recently-seen first */}
+          {offline.length > 0 && (
+            <>
+              {active.length > 0 && <div className="mx-2 my-1 border-t border-subtle" />}
+              {offline.map((row) => renderRow(row, true))}
+            </>
+          )}
         </Disclosure.Panel>
       </Transition>
     </Disclosure>

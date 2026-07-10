@@ -62,6 +62,18 @@ export type TPresenceManualStatus = "online" | "away" | "dnd" | "offline";
 /** Derived, live presence status shown on avatars. "offline" means no live session. */
 export type TUserPresenceStatus = "online" | "away" | "dnd" | "offline";
 
+/**
+ * A user's presence entry as polled from the workspace presence endpoint. Timestamps are
+ * epoch SECONDS (durable "last seen" survives the ephemeral session keys). last_active is
+ * the last genuinely-active beat (drives "Away · Xm ago"); last_seen is the last beat of
+ * any kind (drives "Last seen Xm ago" for offline users).
+ */
+export type TUserPresence = {
+  status: TUserPresenceStatus;
+  last_seen?: number | null;
+  last_active?: number | null;
+};
+
 export interface IUserAccount {
   provider_account_id: string;
   provider: string;

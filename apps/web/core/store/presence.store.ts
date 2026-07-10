@@ -7,7 +7,7 @@
 import { action, makeObservable, observable, runInAction } from "mobx";
 import { v4 as uuidv4 } from "uuid";
 // plane imports
-import type { TPresenceManualStatus, TUserPresenceStatus } from "@plane/types";
+import type { TPresenceManualStatus, TUserPresence, TUserPresenceStatus } from "@plane/types";
 // services
 import { PresenceService } from "@/services/presence.service";
 // store
@@ -27,17 +27,18 @@ const IDLE_CHECK_INTERVAL_MS = 20_000;
 
 const ACTIVITY_EVENTS = ["mousemove", "mousedown", "keydown", "scroll", "touchstart", "focus", "visibilitychange"];
 
-type TPresentStatus = Exclude<TUserPresenceStatus, "offline">;
-
 const MANUAL_STATUSES = new Set<TPresenceManualStatus>(["online", "away", "dnd", "offline"]);
+
+const nowEpoch = () => Math.floor(Date.now() / 1000);
 
 export interface IPresenceStore {
   // observables
-  statusMap: Record<string, TPresentStatus>;
+  presenceMap: Record<string, TUserPresence>;
   manualStatus: TPresenceManualStatus;
   isIdle: boolean;
-  // resolver
+  // resolvers
   getUserStatus: (userId: string | undefined) => TUserPresenceStatus;
+  getUserPresence: (userId: string | undefined) => TUserPresence | undefined;
   // lifecycle
   start: (workspaceSlug: string) => void;
   stop: () => void;
@@ -46,8 +47,8 @@ export interface IPresenceStore {
 }
 
 export class PresenceStore implements IPresenceStore {
-  // observables
-  statusMap: Record<string, TPresentStatus> = {};
+  // observables — one entry per user with a durable trail, offline included.
+  presenceMap: Record<string, TUserPresence> = {};
   manualStatus: TPresenceManualStatus = "online";
   isIdle = false;
 
@@ -68,7 +69,7 @@ export class PresenceStore implements IPresenceStore {
     this.rootStore = rootStore;
     this.service = new PresenceService();
     makeObservable(this, {
-      statusMap: observable,
+      presenceMap: observable,
       manualStatus: observable,
       isIdle: observable,
       start: action,
@@ -78,7 +79,12 @@ export class PresenceStore implements IPresenceStore {
   }
 
   /** Single resolver every avatar/consumer reads. Absence from the map == offline. */
-  getUserStatus = (userId: string | undefined): TUserPresenceStatus => (userId && this.statusMap[userId]) || "offline";
+  getUserStatus = (userId: string | undefined): TUserPresenceStatus =>
+    (userId ? this.presenceMap[userId]?.status : undefined) || "offline";
+
+  /** Full presence entry (status + last_seen/last_active) for label rendering. */
+  getUserPresence = (userId: string | undefined): TUserPresence | undefined =>
+    userId ? this.presenceMap[userId] : undefined;
 
   start = (workspaceSlug: string) => {
     if (typeof window === "undefined") return; // SSR guard
@@ -135,20 +141,26 @@ export class PresenceStore implements IPresenceStore {
 
   // -------- internals --------
 
-  /** Optimistically reflect our own manual status in the shared statusMap so every avatar
+  /** Optimistically reflect our own manual status in the shared presenceMap so every avatar
    *  dot for the current user updates instantly, before the next poll confirms it. */
   private applyOwnStatusLocally(status: TPresenceManualStatus) {
     const userId = this.rootStore.user?.data?.id;
     if (!userId) return;
-    const next = { ...this.statusMap };
+    const next = { ...this.presenceMap };
     if (status === "offline") {
       delete next[userId]; // appear offline -> no dot
-    } else if (status === "online") {
-      next[userId] = this.isIdle ? "away" : "online"; // auto mode: idle still shows away
     } else {
-      next[userId] = status; // "away" | "dnd"
+      // auto mode: idle still shows away. Keep any known timestamps, defaulting to now
+      // (we are, by definition, active right now unless idle).
+      const derived: TUserPresenceStatus = status === "online" ? (this.isIdle ? "away" : "online") : status;
+      const prev = next[userId];
+      next[userId] = {
+        status: derived,
+        last_seen: nowEpoch(),
+        last_active: this.isIdle ? (prev?.last_active ?? null) : nowEpoch(),
+      };
     }
-    this.statusMap = next;
+    this.presenceMap = next;
   }
 
   private teardown() {
@@ -204,17 +216,22 @@ export class PresenceStore implements IPresenceStore {
     try {
       const response = await this.service.fetchPresence(slug);
       runInAction(() => {
-        const next = response?.statuses ?? {};
+        const next: Record<string, TUserPresence> = { ...response?.statuses };
         // We are the source of truth for our own *sticky* status (away / dnd / offline):
         // the server only mirrors it from our heartbeat, so a poll that raced our last
-        // change could otherwise briefly revert our own dot. Overlay it to stay smooth.
-        // "online" is auto mode -> trust the server's activity/multi-tab derivation.
+        // change could otherwise briefly revert our own dot. Overlay the status (keeping
+        // the server's fresh timestamps). "online" is auto mode -> trust the server.
         const userId = this.rootStore.user?.data?.id;
         if (userId && this.manualStatus !== "online") {
           if (this.manualStatus === "offline") delete next[userId];
-          else next[userId] = this.manualStatus;
+          else
+            next[userId] = {
+              status: this.manualStatus,
+              last_seen: next[userId]?.last_seen ?? nowEpoch(),
+              last_active: next[userId]?.last_active ?? nowEpoch(),
+            };
         }
-        this.statusMap = next;
+        this.presenceMap = next;
       });
     } catch {
       // keep last-known statuses on a transient failure

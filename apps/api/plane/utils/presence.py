@@ -36,6 +36,13 @@ HEARTBEAT_INTERVAL = 45
 POLL_INTERVAL = 10
 PRESENCE_TTL = 120
 
+# Durable "last seen"/"last active" survive the ephemeral session/online keys so we can
+# show a timestamp for OFFLINE users too. Kept in a per-workspace hash (one field per
+# member) rather than the DB: no migration, no Postgres write on the 45s hot path, and
+# growth is bounded by the member count. A generous TTL, refreshed on every beat, lets a
+# fully-dormant workspace self-clean without ever expiring an active one.
+LASTSEEN_TTL = 30 * 24 * 60 * 60  # 30 days
+
 # Statuses returned to clients. OFFLINE is represented by absence from the map.
 STATUS_ONLINE = "online"
 STATUS_AWAY = "away"
@@ -58,6 +65,14 @@ def _online_key(workspace_id):
 
 def _manual_key(user_id):
     return f"presence:manual:{user_id}"
+
+
+def _lastseen_key(workspace_id):
+    return f"presence:lastseen:{workspace_id}"
+
+
+def _lastactive_key(workspace_id):
+    return f"presence:lastactive:{workspace_id}"
 
 
 def _now():
@@ -84,6 +99,14 @@ def record_heartbeat(*, workspace_id, user_id, session_id, idle, manual_status):
     pipe.hset(_sessions_key(user_id), session_id, f"{state}:{now}")
     pipe.expire(_sessions_key(user_id), PRESENCE_TTL)
     pipe.zadd(_online_key(workspace_id), {user_id: now})
+    # Durable trail (survives the TTL keys): last_seen every beat, last_active only when
+    # the tab is genuinely active — so Away/DND can show "since last real interaction"
+    # rather than "since last heartbeat".
+    pipe.hset(_lastseen_key(workspace_id), user_id, now)
+    pipe.expire(_lastseen_key(workspace_id), LASTSEEN_TTL)
+    if state == "active":
+        pipe.hset(_lastactive_key(workspace_id), user_id, now)
+        pipe.expire(_lastactive_key(workspace_id), LASTSEEN_TTL)
     # client re-asserts its durable override each beat, so the mirror stays fresh even
     # across a Redis flush and self-expires once the user disconnects. "online" is the
     # default, stored as absence of the key.
@@ -114,55 +137,77 @@ def set_manual_status(*, user_id, manual_status):
         ri.set(_manual_key(user_id), manual_status, ex=PRESENCE_TTL)
 
 
+def _to_epoch(value):
+    value = _decode(value)
+    return int(value) if value and str(value).isdigit() else None
+
+
 def get_workspace_presence(workspace_id):
     """
-    Return {user_id: status} for every present user in the workspace. Offline users
-    (no live session, or manual "offline") are omitted. Status is derived by unioning
-    each user's tabs against their manual override.
+    Return {user_id: {status, last_seen, last_active}} for every user with a durable
+    trail in the workspace — INCLUDING offline ones (so the sidebar can keep them). A
+    live user who manually "appears offline" is omitted entirely (privacy: hidden while
+    online); once they actually disconnect they fall through to a normal OFFLINE row.
+
+    status is derived by unioning each user's live tabs against their manual override;
+    a user with no live/fresh session is OFFLINE regardless of override.
     """
     ri = redis_instance()
     now = _now()
     cutoff = now - PRESENCE_TTL
     online_key = _online_key(workspace_id)
 
-    # prune expired members, then read who is still present
+    # prune expired members from the ZSET, then read who is still live
     ri.zremrangebyscore(online_key, 0, cutoff)
-    present_ids = [_decode(uid) for uid in ri.zrangebyscore(online_key, cutoff, "+inf")]
-    if not present_ids:
+    live_ids = {_decode(uid) for uid in ri.zrangebyscore(online_key, cutoff, "+inf")}
+
+    last_seen = {_decode(k): _to_epoch(v) for k, v in ri.hgetall(_lastseen_key(workspace_id)).items()}
+    last_active = {_decode(k): _to_epoch(v) for k, v in ri.hgetall(_lastactive_key(workspace_id)).items()}
+    if not last_seen:
         return {}
 
-    pipe = ri.pipeline()
-    for uid in present_ids:
-        pipe.hgetall(_sessions_key(uid))
-    for uid in present_ids:
-        pipe.get(_manual_key(uid))
-    results = pipe.execute()
-    session_maps = results[: len(present_ids)]
-    manual_flags = results[len(present_ids) :]
+    # For the live users, pull sessions + manual override to derive their live status.
+    live_list = [uid for uid in last_seen if uid in live_ids]
+    live_status = {}
+    if live_list:
+        pipe = ri.pipeline()
+        for uid in live_list:
+            pipe.hgetall(_sessions_key(uid))
+        for uid in live_list:
+            pipe.get(_manual_key(uid))
+        results = pipe.execute()
+        session_maps = results[: len(live_list)]
+        manual_flags = results[len(live_list) :]
+        for index, uid in enumerate(live_list):
+            any_live = False
+            any_active = False
+            for raw_state in (session_maps[index] or {}).values():
+                state, _, ts = _decode(raw_state).rpartition(":")
+                if not ts.isdigit() or int(ts) < cutoff:
+                    continue
+                any_live = True
+                if state == "active":
+                    any_active = True
+            if not any_live:
+                continue  # ZSET stale; treat as offline below
+            manual = _decode(manual_flags[index]) or DEFAULT_MANUAL_STATUS
+            if manual == STATUS_OFFLINE:
+                live_status[uid] = None  # appear-offline while live -> omit
+            elif manual == STATUS_DND:
+                live_status[uid] = STATUS_DND
+            elif manual == STATUS_AWAY:
+                live_status[uid] = STATUS_AWAY
+            else:  # auto mode: activity decides
+                live_status[uid] = STATUS_ONLINE if any_active else STATUS_AWAY
 
-    statuses = {}
-    for index, uid in enumerate(present_ids):
-        sessions = session_maps[index] or {}
-        any_live = False
-        any_active = False
-        for raw_state in sessions.values():
-            value = _decode(raw_state)
-            state, _, ts = value.rpartition(":")
-            if not ts.isdigit() or int(ts) < cutoff:
-                continue
-            any_live = True
-            if state == "active":
-                any_active = True
-        if not any_live:
-            # ZSET not yet pruned but every session hash field is stale -> offline
-            continue
-        manual = _decode(manual_flags[index]) or DEFAULT_MANUAL_STATUS
-        if manual == STATUS_OFFLINE:
-            continue  # user chose to appear offline
-        if manual == STATUS_DND:
-            statuses[uid] = STATUS_DND
-        elif manual == STATUS_AWAY:
-            statuses[uid] = STATUS_AWAY
-        else:  # "online" auto mode: activity decides
-            statuses[uid] = STATUS_ONLINE if any_active else STATUS_AWAY
-    return statuses
+    result = {}
+    for uid, seen in last_seen.items():
+        status = live_status.get(uid, STATUS_OFFLINE)
+        if status is None:
+            continue  # hidden: live + appear-offline
+        result[uid] = {
+            "status": status,
+            "last_seen": seen,
+            "last_active": last_active.get(uid),
+        }
+    return result
