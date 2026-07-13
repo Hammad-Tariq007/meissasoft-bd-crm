@@ -331,7 +331,11 @@ def send_web_push_for_notifications(
             payload = {
                 "title": title,
                 "body": body,
-                "tag": f"issue-{issue_id}",  # Group notifications by issue
+                # Unique per notification so every message pops as its OWN banner.
+                # A shared per-issue tag made repeat notifications for the same issue
+                # silently replace the previous one in the tray (only the first popped);
+                # keying by notification.id guarantees each one alerts distinctly.
+                "tag": f"issue-{issue_id}-{notification.id}",
                 "badge": "/icons/icon-192x192.png",
                 "icon": "/icons/icon-192x192.png",
                 "url": url,

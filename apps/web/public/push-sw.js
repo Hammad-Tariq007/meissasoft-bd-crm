@@ -40,6 +40,12 @@ self.addEventListener("push", (event) => {
     icon: payload.icon || DEFAULT_ICON,
     badge: payload.badge || DEFAULT_ICON,
     tag: payload.tag || "plane-notification", // Group notifications by issue
+    // Re-alert (banner + sound) on EVERY push, even when a notification with the same
+    // tag is already showing. Without this, a repeat notification for an issue that
+    // already has one silently replaces it in the tray with no pop-up — which is why
+    // some notifications only appeared in the notification center. renotify requires a
+    // tag (always set above), so this is safe.
+    renotify: true,
     requireInteraction: false, // Auto-dismiss after a while
 
     // Professional visual styling
