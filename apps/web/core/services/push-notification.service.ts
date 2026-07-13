@@ -16,6 +16,9 @@ export type TWebPushSubscriptionPayload = {
     p256dh: string;
     auth: string;
   };
+  // Stable per-browser id so the backend keeps ONE subscription per device (prevents
+  // duplicate deliveries when the push endpoint rotates).
+  device_id?: string;
 };
 
 export class PushNotificationService extends APIService {

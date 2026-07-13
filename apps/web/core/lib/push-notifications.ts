@@ -12,6 +12,25 @@ const pushNotificationService = new PushNotificationService();
 // dedicated push service worker, served from apps/web/public
 const PUSH_SERVICE_WORKER_URL = "/push-sw.js";
 
+// A stable id for THIS browser, persisted in localStorage. The push endpoint can rotate
+// (VAPID change / re-subscribe); sending a stable device id lets the backend update the
+// same subscription row instead of orphaning the old one — orphaned rows were causing the
+// same notification to be delivered (and pop) more than once.
+const DEVICE_ID_KEY = "plane_push_device_id";
+
+const getPushDeviceId = (): string | undefined => {
+  if (typeof window === "undefined" || !window.localStorage) return undefined;
+  let deviceId = window.localStorage.getItem(DEVICE_ID_KEY);
+  if (!deviceId) {
+    deviceId =
+      typeof crypto !== "undefined" && "randomUUID" in crypto
+        ? crypto.randomUUID()
+        : `dev-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+    window.localStorage.setItem(DEVICE_ID_KEY, deviceId);
+  }
+  return deviceId;
+};
+
 /** Whether the current browser can receive web push notifications. */
 export const isPushNotificationSupported = (): boolean =>
   typeof window !== "undefined" && "serviceWorker" in navigator && "PushManager" in window && "Notification" in window;
@@ -69,6 +88,7 @@ const saveSubscriptionToBackend = async (subscription: PushSubscription): Promis
       p256dh: payload.keys?.p256dh ?? "",
       auth: payload.keys?.auth ?? "",
     },
+    device_id: getPushDeviceId(),
   });
 };
 

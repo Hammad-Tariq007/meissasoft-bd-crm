@@ -17,6 +17,11 @@ class WebPushSubscription(BaseModel):
     endpoint = models.CharField(max_length=1024)
     p256dh = models.CharField(max_length=255)
     auth = models.CharField(max_length=255)
+    # Stable per-browser identifier (client-generated, persisted in localStorage). Lets us
+    # keep exactly ONE subscription per browser: when a browser's push endpoint rotates
+    # (VAPID change / re-subscribe), we update the same row instead of orphaning the old
+    # one — orphaned rows are why a single notification was delivered (and popped) twice.
+    device_id = models.CharField(max_length=64, null=True, blank=True)
 
     class Meta:
         unique_together = ("user", "endpoint")
