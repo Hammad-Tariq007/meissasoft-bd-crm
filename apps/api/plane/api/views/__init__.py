@@ -9,6 +9,8 @@ from .project import (
     ProjectSummaryAPIEndpoint,
 )
 
+from .bd_insights import BDInsightsAPIEndpoint
+
 from .state import (
     StateListCreateAPIEndpoint,
     StateDetailAPIEndpoint,
