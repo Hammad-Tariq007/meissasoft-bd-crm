@@ -24,8 +24,8 @@ from typing import Any, Dict, List, Optional
 from django.db.models import Avg, Count, DurationField, ExpressionWrapper, F, FilteredRelation, Q, QuerySet, Sum
 from django.db.models.functions import TruncWeek
 
-from plane.db.models import Issue, Workspace, WorkspaceMember
-from plane.db.models.custom_field import CustomFieldDefinition, CustomFieldType, CustomFieldValue
+from plane.db.models import Issue, State, Workspace, WorkspaceMember
+from plane.db.models.custom_field import CustomFieldDefinition, CustomFieldOption, CustomFieldType, CustomFieldValue
 from plane.utils.bd_deal_value import DEFAULT_HOURS_PER_WEEK, estimate_deal_value
 from plane.utils.build_chart import build_leads_wins_by_field
 
@@ -801,3 +801,118 @@ def dispatch_insight(
         return 200, loss_reasons(queryset, fid)
 
     return 400, {"error": "Invalid or missing `type`"}
+
+
+# ---------------------------------------------------------------------------
+# metadata + lead listing (for the token-authenticated MCP client)
+# ---------------------------------------------------------------------------
+def _bd_field_definitions(workspace_slug: str, project_ids_csv: Optional[str]) -> List[CustomFieldDefinition]:
+    q = CustomFieldDefinition.objects.filter(workspace__slug=workspace_slug, is_active=True)
+    if project_ids_csv:
+        q = q.filter(project_id__in=[pid for pid in project_ids_csv.split(",")])
+    return list(q)
+
+
+def bd_metadata(workspace_slug: str, project_ids_csv: Optional[str]) -> Dict[str, Any]:
+    """Field definitions (name -> id/type/options) and states — so a client can resolve
+    field names to ids and know the valid filter values (profiles/countries/etc.)."""
+    defs = _bd_field_definitions(workspace_slug, project_ids_csv)
+    options: Dict[Any, List[Dict[str, str]]] = defaultdict(list)
+    for o in (
+        CustomFieldOption.objects.filter(field__in=defs, is_active=True)
+        .values("id", "name", "field_id")
+        .order_by("sequence", "name")
+    ):
+        options[o["field_id"]].append({"id": str(o["id"]), "name": o["name"]})
+
+    fields = [
+        {"id": str(d.id), "name": d.name, "type": d.field_type, "options": options.get(d.id, [])} for d in defs
+    ]
+
+    state_q = State.objects.filter(workspace__slug=workspace_slug)
+    if project_ids_csv:
+        state_q = state_q.filter(project_id__in=[pid for pid in project_ids_csv.split(",")])
+    states = [
+        {"id": str(s.id), "name": s.name, "group": s.group, "sequence": s.sequence}
+        for s in state_q.order_by("sequence")
+    ]
+    return {"fields": fields, "states": states}
+
+
+def _coerce_field_value(vals: Dict[str, Any]) -> Any:
+    """Pick the populated typed value for a lead's custom field (JSON-safe)."""
+    if vals.get("option") is not None:
+        return vals["option"]
+    if vals.get("text") is not None:
+        return vals["text"]
+    if vals.get("number") is not None:
+        return float(vals["number"])
+    return vals.get("boolean")
+
+
+def list_leads(
+    queryset: QuerySet[Issue],
+    workspace_slug: str,
+    project_ids_csv: Optional[str],
+    state: Optional[str] = None,
+    profile: Optional[str] = None,
+    country: Optional[str] = None,
+    limit: int = 50,
+    offset: int = 0,
+) -> Dict[str, Any]:
+    """Paginated, read-only lead list with key fields + BD custom-field values. Filter by
+    state (name or group) and by Profile / Country option name; date scope is already on the
+    passed queryset."""
+    limit = max(1, min(int(limit or 50), 200))
+    offset = max(0, int(offset or 0))
+
+    field_map = {d.name: d for d in _bd_field_definitions(workspace_slug, project_ids_csv)}
+
+    qs = queryset
+    if state:
+        qs = qs.filter(Q(state__name__iexact=state) | Q(state__group__iexact=state))
+
+    def cf_filter(base, field_name: str, option_name: Optional[str]):
+        definition = field_map.get(field_name)
+        if not definition or not option_name:
+            return base
+        alias = f"cf_flt_{field_name.replace(' ', '_')}"
+        return base.annotate(
+            **{alias: FilteredRelation("custom_field_values", condition=Q(custom_field_values__field_id=definition.id))}
+        ).filter(**{f"{alias}__value_option__name__iexact": option_name})
+
+    qs = cf_filter(qs, "Profile", profile)
+    qs = cf_filter(qs, "Country", country)
+    qs = qs.order_by("-created_at")
+
+    total = qs.distinct().count()
+    page = list(
+        qs.distinct().values(
+            "id", "name", "sequence_id", "created_at", "completed_at",
+            "state__name", "state__group", "project__identifier",
+        )[offset : offset + limit]
+    )
+
+    ids = [r["id"] for r in page]
+    per_issue = collect_field_values(ids, [d.id for d in field_map.values()])
+    id_to_name = {d.id: d.name for d in field_map.values()}
+
+    results = []
+    for r in page:
+        custom = {}
+        for fid, vals in per_issue.get(r["id"], {}).items():
+            name = id_to_name.get(fid)
+            if name:
+                custom[name] = _coerce_field_value(vals)
+        results.append(
+            {
+                "id": str(r["id"]),
+                "identifier": f'{r["project__identifier"]}-{r["sequence_id"]}',
+                "name": r["name"],
+                "state": {"name": r["state__name"], "group": r["state__group"]},
+                "created_at": r["created_at"].isoformat() if r["created_at"] else None,
+                "completed_at": r["completed_at"].isoformat() if r["completed_at"] else None,
+                "fields": custom,
+            }
+        )
+    return {"count": total, "limit": limit, "offset": offset, "results": results}

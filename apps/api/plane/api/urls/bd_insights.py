@@ -4,12 +4,26 @@
 
 from django.urls import path
 
-from plane.api.views import BDInsightsAPIEndpoint
+from plane.api.views import (
+    BDInsightsAPIEndpoint,
+    BDInsightsMetadataAPIEndpoint,
+    BDLeadsAPIEndpoint,
+)
 
 urlpatterns = [
     path(
         "workspaces/<str:slug>/bd-insights/",
         BDInsightsAPIEndpoint.as_view(http_method_names=["get"]),
         name="bd-insights",
+    ),
+    path(
+        "workspaces/<str:slug>/bd-insights/metadata/",
+        BDInsightsMetadataAPIEndpoint.as_view(http_method_names=["get"]),
+        name="bd-insights-metadata",
+    ),
+    path(
+        "workspaces/<str:slug>/bd-insights/leads/",
+        BDLeadsAPIEndpoint.as_view(http_method_names=["get"]),
+        name="bd-insights-leads",
     ),
 ]

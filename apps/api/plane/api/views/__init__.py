@@ -9,7 +9,7 @@ from .project import (
     ProjectSummaryAPIEndpoint,
 )
 
-from .bd_insights import BDInsightsAPIEndpoint
+from .bd_insights import BDInsightsAPIEndpoint, BDInsightsMetadataAPIEndpoint, BDLeadsAPIEndpoint
 
 from .state import (
     StateListCreateAPIEndpoint,
