@@ -3,6 +3,7 @@
 # See the LICENSE file for details.
 
 # Django imports
+from django.db import transaction
 from django.db.models import Count, Q, OuterRef, Subquery, IntegerField
 from django.utils import timezone
 from django.db.models.functions import Coalesce
@@ -23,6 +24,9 @@ from plane.app.serializers import (
 from plane.app.views.base import BaseAPIView
 from plane.db.models import Project, ProjectMember, Workspace, WorkspaceMember, DraftIssue
 from plane.db.models.workspace import WorkspaceTeam
+from plane.db.models.custom_field import CustomFieldOption
+from plane.db.models.bd_team import ProfileAssignment
+from plane.utils import bd_insights_core as bd_core
 from plane.utils.cache import invalidate_cache
 
 from .. import BaseViewSet
@@ -194,6 +198,118 @@ class WorkSpaceMemberViewSet(BaseViewSet):
             fields=("id", "member", "role", "can_view_analytics", "team", "is_team_lead"),
         )
         return Response(serializer.data, status=status.HTTP_200_OK)
+
+    def _can_manage_profile_assignments(self, user, slug):
+        """Profile-assignment managers: workspace OWNER, a workspace ADMIN, or the BD lead."""
+        return (
+            Workspace.objects.filter(slug=slug, owner=user).exists()
+            or WorkspaceMember.objects.filter(
+                workspace__slug=slug, member=user, is_active=True, role=ROLE.ADMIN.value
+            ).exists()
+            or bd_core.is_team_lead(user, slug, team=WorkspaceTeam.BD)
+        )
+
+    def _available_profile_options(self, slug):
+        """All options of the 'Profile' field(s) in this workspace, for the picker."""
+        return list(
+            CustomFieldOption.objects.filter(
+                field__name=bd_core.PROFILE_FIELD_NAME, field__workspace__slug=slug, is_active=True
+            )
+            .values("id", "name")
+            .order_by("sequence", "name")
+        )
+
+    # The setter is gated to admin/member/guest at the decorator so a BD lead (a MEMBER)
+    # can reach it; the precise owner/admin/BD-lead gate is enforced in the body.
+    @allow_permission([ROLE.ADMIN, ROLE.MEMBER, ROLE.GUEST], level="WORKSPACE")
+    def get_profiles(self, request, slug, pk):
+        """A BD member's assigned Profile options + the available options. Manager-gated."""
+        if not self._can_manage_profile_assignments(request.user, slug):
+            return Response(
+                {"error": "Only the workspace owner, an admin, or the BD lead can view profile assignments."},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+        target = WorkspaceMember.objects.filter(
+            pk=pk, workspace__slug=slug, member__is_bot=False, is_active=True
+        ).select_related("member").first()
+        if target is None:
+            return Response({"error": "Member not found."}, status=status.HTTP_404_NOT_FOUND)
+        assigned = sorted(str(x) for x in bd_core.assigned_profile_option_ids(target.member, slug))
+        return Response(
+            {
+                "member": str(target.member_id),
+                "team": target.team,
+                "profile_option_ids": assigned,
+                "available": [{"id": str(o["id"]), "name": o["name"]} for o in self._available_profile_options(slug)],
+            },
+            status=status.HTTP_200_OK,
+        )
+
+    @allow_permission([ROLE.ADMIN, ROLE.MEMBER, ROLE.GUEST], level="WORKSPACE")
+    def set_profiles(self, request, slug, pk):
+        """Replace a BD member's profile assignments. Manager-gated (owner/admin/BD-lead).
+        Validates the target is a BD and every option belongs to the 'Profile' field."""
+        if not self._can_manage_profile_assignments(request.user, slug):
+            return Response(
+                {"error": "Only the workspace owner, an admin, or the BD lead can manage profile assignments."},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+        target = WorkspaceMember.objects.filter(
+            pk=pk, workspace__slug=slug, member__is_bot=False, is_active=True
+        ).first()
+        if target is None:
+            return Response({"error": "Member not found."}, status=status.HTTP_404_NOT_FOUND)
+        if target.team != WorkspaceTeam.BD:
+            return Response(
+                {"error": "Profiles can only be assigned to BD team members."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        ids = request.data.get("profile_option_ids")
+        if not isinstance(ids, list):
+            return Response(
+                {"error": "`profile_option_ids` (list) is required."}, status=status.HTTP_400_BAD_REQUEST
+            )
+        requested = {str(x) for x in ids}
+        # Every id must be an option of the 'Profile' field in this workspace (id-based).
+        valid = {
+            str(x)
+            for x in CustomFieldOption.objects.filter(
+                id__in=list(requested), field__name=bd_core.PROFILE_FIELD_NAME, field__workspace__slug=slug
+            ).values_list("id", flat=True)
+        }
+        if requested - valid:
+            return Response(
+                {"error": "Some options are not valid Profile options."}, status=status.HTTP_400_BAD_REQUEST
+            )
+
+        with transaction.atomic():
+            ProfileAssignment.objects.filter(bd_member=target).delete(soft=False)
+            ProfileAssignment.objects.bulk_create(
+                [
+                    ProfileAssignment(workspace=target.workspace, bd_member=target, profile_option_id=oid)
+                    for oid in valid
+                ]
+            )
+        return Response(
+            {"member": str(target.member_id), "profile_option_ids": sorted(valid)}, status=status.HTTP_200_OK
+        )
+
+    @allow_permission([ROLE.ADMIN, ROLE.MEMBER, ROLE.GUEST], level="WORKSPACE")
+    def my_profiles(self, request, slug):
+        """The current user's own restriction state + assigned option ids (for the lead
+        Profile dropdown filter). The backend enforcement is the real guard."""
+        return Response(
+            {
+                "restricted": bd_core.is_restricted_bd(request.user, slug),
+                "profile_option_ids": sorted(
+                    str(x) for x in bd_core.assigned_profile_option_ids(request.user, slug)
+                ),
+                # Lets the Members UI decide whether to show the profile-assignment control.
+                "can_manage_assignments": self._can_manage_profile_assignments(request.user, slug),
+            },
+            status=status.HTTP_200_OK,
+        )
 
     @allow_permission(allowed_roles=[ROLE.ADMIN], level="WORKSPACE")
     def destroy(self, request, slug, pk):
