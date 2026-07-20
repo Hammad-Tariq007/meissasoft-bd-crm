@@ -14,6 +14,7 @@ import { Button } from "@plane/propel/button";
 import type { IIssueDisplayFilterOptions, IIssueDisplayProperties } from "@plane/types";
 import { EIssueLayoutTypes, EIssuesStoreType } from "@plane/types";
 // hooks
+import { useCanViewBDInsights } from "@/hooks/use-can-view-bd-insights";
 import { useIssues } from "@/hooks/store/use-issues";
 // plane web imports
 import type { TProject } from "@/plane-web/types";
@@ -52,6 +53,8 @@ export const HeaderFilters = observer(function HeaderFilters(props: Props) {
   } = props;
   // i18n
   const { t } = useTranslation();
+  // analytics access — same gate the backend enforces (admin AND (owner OR can_view_analytics))
+  const canViewBDInsights = useCanViewBDInsights();
   // states
   const [analyticsModal, setAnalyticsModal] = useState(false);
   // store hooks
@@ -125,7 +128,7 @@ export const HeaderFilters = observer(function HeaderFilters(props: Props) {
           isEpic={storeType === EIssuesStoreType.EPIC}
         />
       </FiltersDropdown>
-      {canUserCreateIssue ? (
+      {canUserCreateIssue && canViewBDInsights ? (
         <Button className="hidden px-2 md:block" onClick={() => setAnalyticsModal(true)} variant="secondary" size="lg">
           <div className="hidden @4xl:flex">{t("common.analytics")}</div>
           <div className="flex @4xl:hidden">
