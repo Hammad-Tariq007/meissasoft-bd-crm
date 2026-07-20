@@ -121,15 +121,16 @@ urlpatterns = [
         WorkSpaceMemberViewSet.as_view({"patch": "set_team"}),
         name="workspace-member-team",
     ),
+    # Profile assignments are PROJECT-SCOPED (managed in project settings → members).
     path(
-        "workspaces/<str:slug>/members/<uuid:pk>/profiles/",
+        "workspaces/<str:slug>/projects/<uuid:project_id>/members/<uuid:pk>/profiles/",
         WorkSpaceMemberViewSet.as_view({"get": "get_profiles", "patch": "set_profiles"}),
-        name="workspace-member-profiles",
+        name="project-member-profiles",
     ),
     path(
-        "workspaces/<str:slug>/bd/my-profiles/",
+        "workspaces/<str:slug>/projects/<uuid:project_id>/bd/my-profiles/",
         WorkSpaceMemberViewSet.as_view({"get": "my_profiles"}),
-        name="workspace-bd-my-profiles",
+        name="project-bd-my-profiles",
     ),
     path(
         "workspaces/<str:slug>/members/leave/",

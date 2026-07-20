@@ -199,32 +199,39 @@ class WorkSpaceMemberViewSet(BaseViewSet):
         )
         return Response(serializer.data, status=status.HTTP_200_OK)
 
-    def _can_manage_profile_assignments(self, user, slug):
-        """Profile-assignment managers: workspace OWNER, a workspace ADMIN, or the BD lead."""
+    def _can_manage_profile_assignments(self, user, slug, project_id):
+        """Profile-assignment managers: workspace OWNER, a workspace ADMIN, a PROJECT admin,
+        or the BD lead. (Assignments are project-scoped.)"""
         return (
             Workspace.objects.filter(slug=slug, owner=user).exists()
             or WorkspaceMember.objects.filter(
                 workspace__slug=slug, member=user, is_active=True, role=ROLE.ADMIN.value
             ).exists()
+            or ProjectMember.objects.filter(
+                project_id=project_id, member=user, is_active=True, role=ROLE.ADMIN.value
+            ).exists()
             or bd_core.is_team_lead(user, slug, team=WorkspaceTeam.BD)
         )
 
-    def _available_profile_options(self, slug):
-        """All options of the 'Profile' field(s) in this workspace, for the picker."""
+    def _available_profile_options(self, slug, project_id):
+        """Options of the 'Profile' field in THIS project, for the picker."""
         return list(
             CustomFieldOption.objects.filter(
-                field__name=bd_core.PROFILE_FIELD_NAME, field__workspace__slug=slug, is_active=True
+                field__name=bd_core.PROFILE_FIELD_NAME,
+                field__project_id=project_id,
+                field__workspace__slug=slug,
+                is_active=True,
             )
             .values("id", "name")
             .order_by("sequence", "name")
         )
 
-    # The setter is gated to admin/member/guest at the decorator so a BD lead (a MEMBER)
-    # can reach it; the precise owner/admin/BD-lead gate is enforced in the body.
+    # Gated to admin/member/guest at the decorator so a BD lead (a MEMBER) can reach it;
+    # the precise owner/ws-admin/project-admin/BD-lead gate is enforced in the body.
     @allow_permission([ROLE.ADMIN, ROLE.MEMBER, ROLE.GUEST], level="WORKSPACE")
-    def get_profiles(self, request, slug, pk):
-        """A BD member's assigned Profile options + the available options. Manager-gated."""
-        if not self._can_manage_profile_assignments(request.user, slug):
+    def get_profiles(self, request, slug, project_id, pk):
+        """A BD member's assigned Profile options + available options FOR THIS PROJECT."""
+        if not self._can_manage_profile_assignments(request.user, slug, project_id):
             return Response(
                 {"error": "Only the workspace owner, an admin, or the BD lead can view profile assignments."},
                 status=status.HTTP_403_FORBIDDEN,
@@ -234,22 +241,24 @@ class WorkSpaceMemberViewSet(BaseViewSet):
         ).select_related("member").first()
         if target is None:
             return Response({"error": "Member not found."}, status=status.HTTP_404_NOT_FOUND)
-        assigned = sorted(str(x) for x in bd_core.assigned_profile_option_ids(target.member, slug))
+        assigned = sorted(str(x) for x in bd_core.assigned_profile_option_ids(target.member, slug, project_id))
         return Response(
             {
                 "member": str(target.member_id),
                 "team": target.team,
                 "profile_option_ids": assigned,
-                "available": [{"id": str(o["id"]), "name": o["name"]} for o in self._available_profile_options(slug)],
+                "available": [
+                    {"id": str(o["id"]), "name": o["name"]} for o in self._available_profile_options(slug, project_id)
+                ],
             },
             status=status.HTTP_200_OK,
         )
 
     @allow_permission([ROLE.ADMIN, ROLE.MEMBER, ROLE.GUEST], level="WORKSPACE")
-    def set_profiles(self, request, slug, pk):
-        """Replace a BD member's profile assignments. Manager-gated (owner/admin/BD-lead).
-        Validates the target is a BD and every option belongs to the 'Profile' field."""
-        if not self._can_manage_profile_assignments(request.user, slug):
+    def set_profiles(self, request, slug, project_id, pk):
+        """Replace a BD member's profile assignments FOR THIS PROJECT. Manager-gated.
+        Validates the target is a BD and every option belongs to this project's 'Profile' field."""
+        if not self._can_manage_profile_assignments(request.user, slug, project_id):
             return Response(
                 {"error": "Only the workspace owner, an admin, or the BD lead can manage profile assignments."},
                 status=status.HTTP_403_FORBIDDEN,
@@ -271,23 +280,33 @@ class WorkSpaceMemberViewSet(BaseViewSet):
                 {"error": "`profile_option_ids` (list) is required."}, status=status.HTTP_400_BAD_REQUEST
             )
         requested = {str(x) for x in ids}
-        # Every id must be an option of the 'Profile' field in this workspace (id-based).
+        # Every id must be an option of THIS project's 'Profile' field (id-based).
         valid = {
             str(x)
             for x in CustomFieldOption.objects.filter(
-                id__in=list(requested), field__name=bd_core.PROFILE_FIELD_NAME, field__workspace__slug=slug
+                id__in=list(requested),
+                field__name=bd_core.PROFILE_FIELD_NAME,
+                field__project_id=project_id,
+                field__workspace__slug=slug,
             ).values_list("id", flat=True)
         }
         if requested - valid:
             return Response(
-                {"error": "Some options are not valid Profile options."}, status=status.HTTP_400_BAD_REQUEST
+                {"error": "Some options are not valid Profile options for this project."},
+                status=status.HTTP_400_BAD_REQUEST,
             )
 
         with transaction.atomic():
-            ProfileAssignment.objects.filter(bd_member=target).delete(soft=False)
+            # Replace only THIS project's assignments for the member.
+            ProfileAssignment.objects.filter(bd_member=target, project_id=project_id).delete(soft=False)
             ProfileAssignment.objects.bulk_create(
                 [
-                    ProfileAssignment(workspace=target.workspace, bd_member=target, profile_option_id=oid)
+                    ProfileAssignment(
+                        workspace=target.workspace,
+                        project_id=project_id,
+                        bd_member=target,
+                        profile_option_id=oid,
+                    )
                     for oid in valid
                 ]
             )
@@ -296,17 +315,17 @@ class WorkSpaceMemberViewSet(BaseViewSet):
         )
 
     @allow_permission([ROLE.ADMIN, ROLE.MEMBER, ROLE.GUEST], level="WORKSPACE")
-    def my_profiles(self, request, slug):
-        """The current user's own restriction state + assigned option ids (for the lead
-        Profile dropdown filter). The backend enforcement is the real guard."""
+    def my_profiles(self, request, slug, project_id):
+        """The current user's restriction state (workspace-level) + assigned option ids
+        FOR THIS PROJECT (for the lead Profile dropdown filter). Backend is the real guard."""
         return Response(
             {
                 "restricted": bd_core.is_restricted_bd(request.user, slug),
                 "profile_option_ids": sorted(
-                    str(x) for x in bd_core.assigned_profile_option_ids(request.user, slug)
+                    str(x) for x in bd_core.assigned_profile_option_ids(request.user, slug, project_id)
                 ),
-                # Lets the Members UI decide whether to show the profile-assignment control.
-                "can_manage_assignments": self._can_manage_profile_assignments(request.user, slug),
+                # Lets the project Members UI decide whether to show the assignment control.
+                "can_manage_assignments": self._can_manage_profile_assignments(request.user, slug, project_id),
             },
             status=status.HTTP_200_OK,
         )
