@@ -70,6 +70,7 @@ from plane.utils.grouper import (
 )
 from plane.utils.host import base_host
 from plane.utils.issue_filters import issue_filters
+from plane.utils import bd_insights_core as bd_core
 from plane.utils.order_queryset import order_issue_queryset
 from plane.utils.paginator import GroupedOffsetPaginator, SubGroupedOffsetPaginator
 from plane.utils.timezone_converter import user_timezone_converter
@@ -392,6 +393,14 @@ class IssueViewSet(BaseViewSet):
     def create(self, request, slug, project_id):
         project = Project.objects.get(pk=project_id)
 
+        # BD CRM Phase 2: a restricted BD must create a lead WITH an assigned Profile
+        # (supplied inline as `profile_option_id`). This closes the gap where a lead could
+        # be created via API without the follow-up custom-field call. Fails closed.
+        profile_option_id = request.data.get("profile_option_id")
+        profile_error = bd_core.bd_create_profile_error(request.user, slug, project_id, profile_option_id)
+        if profile_error:
+            return Response({"error": profile_error[1]}, status=profile_error[0])
+
         serializer = IssueCreateSerializer(
             data=request.data,
             context={
@@ -403,6 +412,11 @@ class IssueViewSet(BaseViewSet):
 
         if serializer.is_valid():
             serializer.save()
+            # Persist the Profile atomically for a restricted BD's new lead.
+            if profile_option_id and bd_core.is_restricted_bd(request.user, slug):
+                bd_core.set_profile_value(
+                    slug, project_id, serializer.data["id"], project.workspace_id, str(profile_option_id)
+                )
 
             # Track the issue
             issue_activity.delay(

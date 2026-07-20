@@ -16,6 +16,7 @@ import { EIssuesStoreType } from "@plane/types";
 import { EModalPosition, EModalWidth, ModalCore } from "@plane/ui";
 // hooks
 import { useIssueModal } from "@/hooks/context/use-issue-modal";
+import { useCustomField } from "@/hooks/store/use-custom-field";
 import { useCycle } from "@/hooks/store/use-cycle";
 import { useIssueDetail } from "@/hooks/store/use-issue-detail";
 import { useIssues } from "@/hooks/store/use-issues";
@@ -80,10 +81,12 @@ export const CreateUpdateIssueModalBase = observer(function CreateUpdateIssueMod
     handleCreateUpdatePropertyValues,
     handleCreateSubWorkItem,
     handleCreateCustomFieldValues,
+    customFieldValues,
     setCustomFieldValues,
     setCustomFieldValueErrors,
   } = useIssueModal();
   const { getProjectByIdentifier } = useProject();
+  const { getProjectCustomFields } = useCustomField();
   // current store details
   const { createIssue, updateIssue } = useIssuesActions(storeType);
   // derived values
@@ -171,6 +174,13 @@ export const CreateUpdateIssueModalBase = observer(function CreateUpdateIssueMod
     is_draft_issue: boolean = false
   ): Promise<TIssue | undefined> => {
     if (!workspaceSlug || !payload.project_id) return;
+
+    // BD CRM Phase 2: send the chosen Profile inline so the backend can enforce/persist
+    // it at creation for a restricted BD (the backend decides whom it applies to). The
+    // profile is also set via the normal after-create flush, so this is idempotent.
+    const profileFieldId = getProjectCustomFields(payload.project_id)?.find((f) => f.name === "Profile")?.id;
+    const profileOptionId = profileFieldId ? customFieldValues?.[profileFieldId] : undefined;
+    if (profileOptionId) (payload as Partial<TIssue> & { profile_option_id?: unknown }).profile_option_id = profileOptionId;
 
     try {
       let response: TIssue | undefined;
