@@ -6,6 +6,8 @@
 
 import { useEffect, useState } from "react";
 import { observer } from "mobx-react";
+import { useParams } from "next/navigation";
+import useSWR from "swr";
 import {
   Type,
   AlignLeft,
@@ -24,8 +26,15 @@ import { renderFormattedPayloadDate } from "@plane/utils";
 // components
 import { DateDropdown } from "@/components/dropdowns/date";
 import { MemberDropdown } from "@/components/dropdowns/member/dropdown";
+// services
+import { WorkspaceService } from "@/services/workspace.service";
 // types
 import type { ICustomField, ICustomFieldValue, TCustomFieldType } from "@/types/custom-field";
+
+const workspaceService = new WorkspaceService();
+
+// Name of the BD "Profile" field — restricted BDs only see the profiles assigned to them.
+const PROFILE_FIELD_NAME = "Profile";
 
 export const CUSTOM_FIELD_ICONS: Record<TCustomFieldType, React.FC<{ className?: string }>> = {
   text: Type,
@@ -128,6 +137,16 @@ const EditableTextValue = observer(function EditableTextValue(props: {
 export const CustomFieldValueControl = observer(function CustomFieldValueControl(props: Props) {
   const { projectId, field, valueObject, disabled, onSet, onClear } = props;
   const value = valueObject?.value ?? null;
+  const { workspaceSlug } = useParams();
+
+  // For the "Profile" field, a restricted BD may only choose profiles assigned to them.
+  // The backend is the real guard; this just narrows the dropdown. Fetched once per slug.
+  const isProfileField = field.name === PROFILE_FIELD_NAME;
+  const { data: myProfiles } = useSWR(
+    isProfileField && workspaceSlug ? ["bd-my-profiles", workspaceSlug.toString()] : null,
+    isProfileField && workspaceSlug ? () => workspaceService.getMyProfileAssignments(workspaceSlug.toString()) : null
+  );
+  const restrictProfile = isProfileField && !!myProfiles?.restricted;
 
   switch (field.field_type) {
     case "text":
@@ -184,7 +203,11 @@ export const CustomFieldValueControl = observer(function CustomFieldValueControl
     case "single_select":
     case "multi_select": {
       const isMulti = field.field_type === "multi_select";
-      const activeOptions = (field.options ?? []).filter((o) => o.is_active);
+      const allowedProfileIds = new Set(myProfiles?.profile_option_ids ?? []);
+      const activeOptions = (field.options ?? [])
+        .filter((o) => o.is_active)
+        // Restricted BD on the Profile field: only their assigned options.
+        .filter((o) => !restrictProfile || allowedProfileIds.has(o.id));
       const options: ICustomSearchSelectOption[] = activeOptions.map((o) => ({
         value: o.id,
         query: o.name,
@@ -197,7 +220,8 @@ export const CustomFieldValueControl = observer(function CustomFieldValueControl
       }));
       // Optional single-selects get a "None" entry to clear the value. Required
       // fields cannot be cleared (the server rejects it), so we omit it there.
-      if (!isMulti && !field.is_required) {
+      // A restricted BD cannot clear the Profile, so no "None" entry for them.
+      if (!isMulti && !field.is_required && !restrictProfile) {
         options.unshift({ value: "", query: "none", content: <span className="text-placeholder">None</span> });
       }
 

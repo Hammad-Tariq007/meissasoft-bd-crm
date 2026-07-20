@@ -6,6 +6,7 @@
 
 import { useState } from "react";
 import { useParams } from "next/navigation";
+import useSWR from "swr";
 import { EUserPermissions, EUserPermissionsLevel, LOGIN_MEDIUM_LABELS } from "@plane/constants";
 import { useTranslation } from "@plane/i18n";
 import { renderFormattedDate } from "@plane/utils";
@@ -15,12 +16,16 @@ import {
   AccountTypeColumn,
   AnalyticsAccessColumn,
   NameColumn,
+  ProfilesColumn,
   TeamColumn,
 } from "@/components/workspace/settings/member-columns";
 import { useMember } from "@/hooks/store/use-member";
 import { useWorkspace } from "@/hooks/store/use-workspace";
 import { useUser, useUserPermissions } from "@/hooks/store/user";
+import { WorkspaceService } from "@/services/workspace.service";
 import type { IMemberFilters } from "@/store/member/utils";
+
+const workspaceService = new WorkspaceService();
 
 const isSuspended = (rowData: RowData) => rowData.is_active === false;
 
@@ -45,6 +50,14 @@ export const useMemberColumns = () => {
   // The analytics-access toggle is owner-only: only the workspace owner may grant/revoke it.
   const ownerId = typeof currentWorkspace?.owner === "string" ? currentWorkspace?.owner : currentWorkspace?.owner?.id;
   const isWorkspaceOwner = !!currentUser?.id && ownerId === currentUser.id;
+
+  // Profile-assignment management is allowed for owner / admin / BD lead — the backend
+  // reports this via my-profiles.can_manage_assignments (single source of truth).
+  const { data: myProfiles } = useSWR(
+    workspaceSlug ? ["bd-my-profiles", workspaceSlug.toString()] : null,
+    workspaceSlug ? () => workspaceService.getMyProfileAssignments(workspaceSlug.toString()) : null
+  );
+  const canManageProfiles = !!myProfiles?.can_manage_assignments;
 
   // handlers
   const handleDisplayFilterUpdate = (filterUpdates: Partial<IMemberFilters>) => {
@@ -157,6 +170,17 @@ export const useMemberColumns = () => {
             content: "Team",
             thClassName: "text-left",
             tdRender: (rowData: RowData) => <TeamColumn rowData={rowData} workspaceSlug={workspaceSlug} />,
+          },
+        ]
+      : []),
+    // Profiles column: owner / admin / BD lead may assign profiles to BD members (Phase 2).
+    ...(canManageProfiles
+      ? [
+          {
+            key: "Profiles",
+            content: "Profiles",
+            thClassName: "text-left",
+            tdRender: (rowData: RowData) => <ProfilesColumn rowData={rowData} workspaceSlug={workspaceSlug} />,
           },
         ]
       : []),

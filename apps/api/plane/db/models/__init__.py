@@ -69,6 +69,7 @@ from .custom_field import (
     CustomFieldValue,
     CustomFieldType,
 )
+from .bd_team import ProfileAssignment
 from .user import Account, Profile, User, BotTypeEnum
 from .view import IssueView
 from .webhook import Webhook, WebhookLog

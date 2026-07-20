@@ -27,6 +27,7 @@ from plane.db.models import (
     WorkspaceMember,
 )
 from plane.db.models.custom_field import SELECT_TYPES, TEXT_TYPES
+from plane.utils import bd_insights_core as bd_core
 
 # Options are reordered/created with this gap, matching the State convention.
 SEQUENCE_STEP = 15000
@@ -256,6 +257,32 @@ class CustomFieldValueViewSet(BaseViewSet):
         if field.is_required and is_empty:
             return Response({"error": f"'{field.name}' is required."}, status=status.HTTP_400_BAD_REQUEST)
 
+        # BD CRM Phase 2: a restricted BD may only set the Profile field to a profile
+        # assigned to them, and must not leave it empty. This is the SOLE custom-field
+        # write path (the public /api/v1 API has none), so it covers create AND edit,
+        # UI AND API. Fail closed — if the Profile field can't be resolved by name, deny
+        # (a rename must block loudly, never silently fall open). NOTE: any future
+        # public-API custom-field write MUST call this same guard.
+        if bd_core.is_restricted_bd(request.user, slug):
+            profile_field_id = bd_core.resolve_profile_field_id(slug, project_id)
+            if profile_field_id is None:
+                return Response(
+                    {"error": "Profile field is misconfigured; lead changes are blocked. Contact an admin."},
+                    status=status.HTTP_403_FORBIDDEN,
+                )
+            if str(field.id) == str(profile_field_id):
+                if is_empty:
+                    return Response(
+                        {"error": "As a BD you must set a Profile assigned to you."},
+                        status=status.HTTP_403_FORBIDDEN,
+                    )
+                allowed = {str(x) for x in bd_core.assigned_profile_option_ids(request.user, slug)}
+                if str(value) not in allowed:
+                    return Response(
+                        {"error": "You can only use a profile assigned to you."},
+                        status=status.HTTP_403_FORBIDDEN,
+                    )
+
         # Reuse the existing value row for this (field, issue) or build a new one.
         obj = CustomFieldValue.objects.filter(field=field, issue=issue).first()
         if obj is None:
@@ -332,6 +359,15 @@ class CustomFieldValueViewSet(BaseViewSet):
     @allow_permission([ROLE.ADMIN], assignee=True)
     def clear(self, request, slug, project_id, issue_id, field_id):
         """Remove this work item's value for the given field."""
+        # BD CRM Phase 2: a restricted BD cannot clear/empty the Profile field. Fail
+        # closed — if the Profile field can't be resolved, deny regardless.
+        if bd_core.is_restricted_bd(request.user, slug):
+            profile_field_id = bd_core.resolve_profile_field_id(slug, project_id)
+            if profile_field_id is None or str(field_id) == str(profile_field_id):
+                return Response(
+                    {"error": "As a BD you must keep a Profile assigned to you."},
+                    status=status.HTTP_403_FORBIDDEN,
+                )
         field = CustomFieldDefinition.objects.get(pk=field_id, project_id=project_id, workspace__slug=slug)
         if field.is_required:
             return Response(

@@ -184,6 +184,51 @@ export class WorkspaceService extends APIService {
       });
   }
 
+  // --- BD CRM profile assignments (Phase 2) ---
+
+  // Manager-only: a BD member's assigned Profile options + the available options.
+  async getWorkspaceMemberProfiles(
+    workspaceSlug: string,
+    memberId: string
+  ): Promise<{
+    member: string;
+    team: string | null;
+    profile_option_ids: string[];
+    available: { id: string; name: string }[];
+  }> {
+    return this.get(`/api/workspaces/${workspaceSlug}/members/${memberId}/profiles/`)
+      .then((response) => response?.data)
+      .catch((error) => {
+        throw error?.response?.data;
+      });
+  }
+
+  // Manager-only: replace a BD member's profile assignments.
+  async updateWorkspaceMemberProfiles(
+    workspaceSlug: string,
+    memberId: string,
+    profileOptionIds: string[]
+  ): Promise<{ member: string; profile_option_ids: string[] }> {
+    return this.patch(`/api/workspaces/${workspaceSlug}/members/${memberId}/profiles/`, {
+      profile_option_ids: profileOptionIds,
+    })
+      .then((response) => response?.data)
+      .catch((error) => {
+        throw error?.response?.data;
+      });
+  }
+
+  // Current user's own restriction state + assigned option ids (for the lead Profile dropdown filter).
+  async getMyProfileAssignments(
+    workspaceSlug: string
+  ): Promise<{ restricted: boolean; profile_option_ids: string[]; can_manage_assignments: boolean }> {
+    return this.get(`/api/workspaces/${workspaceSlug}/bd/my-profiles/`)
+      .then((response) => response?.data)
+      .catch((error) => {
+        throw error?.response?.data;
+      });
+  }
+
   async deleteWorkspaceMember(workspaceSlug: string, memberId: string): Promise<any> {
     return this.delete(`/api/workspaces/${workspaceSlug}/members/${memberId}/`)
       .then((response) => response?.data)

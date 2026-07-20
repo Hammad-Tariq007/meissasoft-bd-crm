@@ -26,6 +26,8 @@ from django.db.models.functions import TruncWeek
 
 from plane.db.models import Issue, State, Workspace, WorkspaceMember
 from plane.db.models.workspace import WorkspaceTeam
+from plane.db.models.project import ROLE
+from plane.db.models.bd_team import ProfileAssignment
 from plane.db.models.custom_field import CustomFieldDefinition, CustomFieldOption, CustomFieldType, CustomFieldValue
 from plane.utils.bd_deal_value import DEFAULT_HOURS_PER_WEEK, estimate_deal_value
 from plane.utils.build_chart import build_leads_wins_by_field
@@ -140,6 +142,57 @@ def is_team_lead(user, workspace_slug: str, team=None) -> bool:
     if team is not None:
         qs = qs.filter(team=team)
     return qs.exists()
+
+
+# --- BD CRM profile-assignment layer (Phase 2). ---
+
+# The Profile field is identified by NAME (consistent with bd_insights / analytics).
+# This is the ONE place that name lives — change it here if the field is ever renamed.
+PROFILE_FIELD_NAME = "Profile"
+
+
+def resolve_profile_field_id(workspace_slug: str, project_id):
+    """Resolve the single-select 'Profile' field id for a project by NAME.
+
+    Returns None if it cannot be found — callers MUST fail closed (deny a restricted BD),
+    never fall open. A rename of the Profile field therefore surfaces as a loud, visible
+    block on BD create/edit rather than a silent bypass of the restriction.
+    """
+    return (
+        CustomFieldDefinition.objects.filter(
+            workspace__slug=workspace_slug, project_id=project_id, name=PROFILE_FIELD_NAME
+        )
+        .values_list("id", flat=True)
+        .first()
+    )
+
+
+def is_restricted_bd(user, workspace_slug: str) -> bool:
+    """A regular BD subject to the profile restriction: on the BD team AND NOT the
+    workspace owner, a workspace admin, or a team lead (those oversee everything)."""
+    if not is_bd(user, workspace_slug):
+        return False
+    if Workspace.objects.filter(slug=workspace_slug, owner=user).exists():
+        return False
+    if is_team_lead(user, workspace_slug):
+        return False
+    if WorkspaceMember.objects.filter(
+        workspace__slug=workspace_slug, member=user, is_active=True, role=ROLE.ADMIN.value
+    ).exists():
+        return False
+    return True
+
+
+def assigned_profile_option_ids(user, workspace_slug: str) -> set:
+    """The set of Profile CustomFieldOption ids assigned to this member (id-based, so
+    renaming an option's label never changes what is assigned)."""
+    return set(
+        ProfileAssignment.objects.filter(
+            bd_member__workspace__slug=workspace_slug,
+            bd_member__member=user,
+            bd_member__is_active=True,
+        ).values_list("profile_option_id", flat=True)
+    )
 
 
 def collect_field_values(
