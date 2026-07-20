@@ -25,6 +25,7 @@ from django.db.models import Avg, Count, DurationField, ExpressionWrapper, F, Fi
 from django.db.models.functions import TruncWeek
 
 from plane.db.models import Issue, State, Workspace, WorkspaceMember
+from plane.db.models.workspace import WorkspaceTeam
 from plane.db.models.custom_field import CustomFieldDefinition, CustomFieldOption, CustomFieldType, CustomFieldValue
 from plane.utils.bd_deal_value import DEFAULT_HOURS_PER_WEEK, estimate_deal_value
 from plane.utils.build_chart import build_leads_wins_by_field
@@ -112,6 +113,33 @@ def has_analytics_access(user, workspace_slug: str) -> bool:
     return WorkspaceMember.objects.filter(
         workspace__slug=workspace_slug, member=user, is_active=True, can_view_analytics=True
     ).exists()
+
+
+# --- BD CRM team layer (Phase 1) reads. Thin indirection over the WorkspaceMember
+# attributes so Phases 2/3 gate through these; storage could move to a sidecar later
+# without touching callers. ---
+def member_team(user, workspace_slug: str):
+    """The member's team ("bd"/"dev") in this workspace, or None if unassigned / not a member."""
+    return (
+        WorkspaceMember.objects.filter(workspace__slug=workspace_slug, member=user, is_active=True)
+        .values_list("team", flat=True)
+        .first()
+    )
+
+
+def is_bd(user, workspace_slug: str) -> bool:
+    """True if the member is on the BD team in this workspace."""
+    return member_team(user, workspace_slug) == WorkspaceTeam.BD
+
+
+def is_team_lead(user, workspace_slug: str, team=None) -> bool:
+    """True if the member is a team lead in this workspace (optionally of a specific team)."""
+    qs = WorkspaceMember.objects.filter(
+        workspace__slug=workspace_slug, member=user, is_active=True, is_team_lead=True
+    )
+    if team is not None:
+        qs = qs.filter(team=team)
+    return qs.exists()
 
 
 def collect_field_values(

@@ -11,7 +11,12 @@ import { useTranslation } from "@plane/i18n";
 import { renderFormattedDate } from "@plane/utils";
 import { MemberHeaderColumn } from "@/components/project/member-header-column";
 import type { RowData } from "@/components/workspace/settings/member-columns";
-import { AccountTypeColumn, AnalyticsAccessColumn, NameColumn } from "@/components/workspace/settings/member-columns";
+import {
+  AccountTypeColumn,
+  AnalyticsAccessColumn,
+  NameColumn,
+  TeamColumn,
+} from "@/components/workspace/settings/member-columns";
 import { useMember } from "@/hooks/store/use-member";
 import { useWorkspace } from "@/hooks/store/use-workspace";
 import { useUser, useUserPermissions } from "@/hooks/store/user";
@@ -145,6 +150,13 @@ export const useMemberColumns = () => {
             content: "Analytics access",
             thClassName: "text-left",
             tdRender: (rowData: RowData) => <AnalyticsAccessColumn rowData={rowData} workspaceSlug={workspaceSlug} />,
+          },
+          // Owner-only: set each member's team (BD/Dev) and team lead (Phase 1).
+          {
+            key: "Team",
+            content: "Team",
+            thClassName: "text-left",
+            tdRender: (rowData: RowData) => <TeamColumn rowData={rowData} workspaceSlug={workspaceSlug} />,
           },
         ]
       : []),
