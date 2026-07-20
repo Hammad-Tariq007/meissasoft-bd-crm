@@ -143,8 +143,10 @@ export const CustomFieldValueControl = observer(function CustomFieldValueControl
   // The backend is the real guard; this just narrows the dropdown. Fetched once per slug.
   const isProfileField = field.name === PROFILE_FIELD_NAME;
   const { data: myProfiles } = useSWR(
-    isProfileField && workspaceSlug ? ["bd-my-profiles", workspaceSlug.toString()] : null,
-    isProfileField && workspaceSlug ? () => workspaceService.getMyProfileAssignments(workspaceSlug.toString()) : null
+    isProfileField && workspaceSlug && projectId ? ["bd-my-profiles", workspaceSlug.toString(), projectId] : null,
+    isProfileField && workspaceSlug && projectId
+      ? () => workspaceService.getMyProfileAssignments(workspaceSlug.toString(), projectId)
+      : null
   );
   const restrictProfile = isProfileField && !!myProfiles?.restricted;
 

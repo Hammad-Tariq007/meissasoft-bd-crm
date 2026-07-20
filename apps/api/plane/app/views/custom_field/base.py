@@ -276,10 +276,10 @@ class CustomFieldValueViewSet(BaseViewSet):
                         {"error": "As a BD you must set a Profile assigned to you."},
                         status=status.HTTP_403_FORBIDDEN,
                     )
-                allowed = {str(x) for x in bd_core.assigned_profile_option_ids(request.user, slug)}
+                allowed = {str(x) for x in bd_core.assigned_profile_option_ids(request.user, slug, project_id)}
                 if str(value) not in allowed:
                     return Response(
-                        {"error": "You can only use a profile assigned to you."},
+                        {"error": "You can only use a profile assigned to you in this project."},
                         status=status.HTTP_403_FORBIDDEN,
                     )
 

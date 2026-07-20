@@ -6,7 +6,7 @@
 
 import { observer } from "mobx-react";
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { Controller, useForm } from "react-hook-form";
 
 import { Disclosure } from "@headlessui/react";
@@ -17,17 +17,14 @@ import { Pill, EPillVariant, EPillSize } from "@plane/propel/pill";
 import { TOAST_TYPE, setToast } from "@plane/propel/toast";
 import type { IUser, IWorkspaceMember } from "@plane/types";
 // plane ui
-import { CustomSearchSelect, CustomSelect, PopoverMenu, ToggleSwitch } from "@plane/ui";
+import { CustomSelect, PopoverMenu, ToggleSwitch } from "@plane/ui";
 // helpers
 import { getFileURL } from "@plane/utils";
 // hooks
 import { UserAvatar } from "@/components/common/user-avatar";
 import { useMember } from "@/hooks/store/use-member";
 import { useUser, useUserPermissions } from "@/hooks/store/user";
-// services
-import { WorkspaceService } from "@/services/workspace.service";
 
-const workspaceService = new WorkspaceService();
 
 export interface RowData {
   member: IWorkspaceMember;
@@ -311,83 +308,5 @@ export const TeamColumn = observer(function TeamColumn({ rowData, workspaceSlug 
         Lead
       </span>
     </div>
-  );
-});
-
-type ProfilesColumnProps = {
-  rowData: RowData;
-  workspaceSlug: string | string[] | undefined;
-};
-
-/**
- * Owner/admin/BD-lead control to manage a BD member's assigned Profile options.
- * Only meaningful for team="bd" members; the server enforces the gate and validation.
- */
-export const ProfilesColumn = observer(function ProfilesColumn({ rowData, workspaceSlug }: ProfilesColumnProps) {
-  const {
-    workspace: { getWorkspaceMemberDetails },
-  } = useMember();
-  const memberPk = getWorkspaceMemberDetails(rowData.member.id)?.id;
-  const [available, setAvailable] = useState<{ id: string; name: string }[]>([]);
-  const [selected, setSelected] = useState<string[]>([]);
-  const [busy, setBusy] = useState(false);
-
-  const isBD = rowData.team === "bd";
-
-  useEffect(() => {
-    if (!isBD || !workspaceSlug || !memberPk) return;
-    let active = true;
-    void (async () => {
-      try {
-        const d = await workspaceService.getWorkspaceMemberProfiles(workspaceSlug.toString(), memberPk);
-        if (!active) return;
-        setAvailable(d.available ?? []);
-        setSelected(d.profile_option_ids ?? []);
-      } catch {
-        /* ignore load errors */
-      }
-    })();
-    return () => {
-      active = false;
-    };
-  }, [isBD, workspaceSlug, memberPk]);
-
-  if (!isBD) return <span className="text-xs text-placeholder">—</span>;
-
-  const save = async (next: string[]) => {
-    if (!workspaceSlug || !memberPk) return;
-    const prev = selected;
-    setSelected(next);
-    setBusy(true);
-    try {
-      await workspaceService.updateWorkspaceMemberProfiles(workspaceSlug.toString(), memberPk, next);
-    } catch (err: unknown) {
-      setSelected(prev);
-      const error = err as { error?: string };
-      setToast({ type: TOAST_TYPE.ERROR, title: "Error!", message: error?.error ?? "Could not update profiles." });
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  const options = available.map((o) => ({ value: o.id, query: o.name, content: <span>{o.name}</span> }));
-  const label = (
-    <span className={selected.length ? "" : "text-placeholder"}>
-      {selected.length ? `${selected.length} profile${selected.length > 1 ? "s" : ""}` : "None"}
-    </span>
-  );
-
-  return (
-    <CustomSearchSelect
-      multiple
-      options={options}
-      value={selected}
-      onChange={(vals: string[]) => save(vals)}
-      label={label}
-      disabled={busy || !memberPk}
-      className="w-40"
-      buttonClassName="border-none bg-transparent px-2 h-7.5 text-body-xs-regular hover:bg-layer-1"
-      optionsClassName="w-56"
-    />
   );
 });

@@ -6,6 +6,7 @@
 
 import { observer } from "mobx-react";
 import Link from "next/link";
+import { useEffect, useState } from "react";
 import { Controller, useForm } from "react-hook-form";
 import { CircleMinus } from "lucide-react";
 import { Disclosure } from "@headlessui/react";
@@ -13,12 +14,16 @@ import { Disclosure } from "@headlessui/react";
 import { ROLE, EUserPermissions, MEMBER_TRACKER_ELEMENTS } from "@plane/constants";
 import { TOAST_TYPE, setToast } from "@plane/propel/toast";
 import type { EUserProjectRoles, IUser, IWorkspaceMember, TProjectMembership } from "@plane/types";
-import { CustomMenu, CustomSelect } from "@plane/ui";
+import { CustomMenu, CustomSearchSelect, CustomSelect } from "@plane/ui";
 import { getFileURL } from "@plane/utils";
 // hooks
 import { UserAvatar } from "@/components/common/user-avatar";
 import { useMember } from "@/hooks/store/use-member";
 import { useUser, useUserPermissions } from "@/hooks/store/user";
+// services
+import { WorkspaceService } from "@/services/workspace.service";
+
+const workspaceService = new WorkspaceService();
 
 export interface RowData extends Pick<TProjectMembership, "original_role"> {
   member: IWorkspaceMember;
@@ -185,5 +190,85 @@ export const AccountTypeColumn = observer(function AccountTypeColumn(props: Acco
         </div>
       )}
     </>
+  );
+});
+
+type ProfilesColumnProps = {
+  rowData: RowData;
+  workspaceSlug: string;
+  projectId: string;
+};
+
+/**
+ * Owner/ws-or-project-admin/BD-lead control to manage a BD member's Profile assignments
+ * FOR THIS PROJECT. Only meaningful for team="bd" members; the server enforces the gate,
+ * project scope, and validation.
+ */
+export const ProfilesColumn = observer(function ProfilesColumn({ rowData, workspaceSlug, projectId }: ProfilesColumnProps) {
+  const {
+    workspace: { getWorkspaceMemberDetails },
+  } = useMember();
+  const memberPk = getWorkspaceMemberDetails(rowData.member.id)?.id;
+  const [team, setTeam] = useState<string | null>(null);
+  const [available, setAvailable] = useState<{ id: string; name: string }[]>([]);
+  const [selected, setSelected] = useState<string[]>([]);
+  const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    if (!workspaceSlug || !projectId || !memberPk) return;
+    let active = true;
+    void (async () => {
+      try {
+        const d = await workspaceService.getProjectMemberProfiles(workspaceSlug, projectId, memberPk);
+        if (!active) return;
+        setTeam(d.team);
+        setAvailable(d.available ?? []);
+        setSelected(d.profile_option_ids ?? []);
+      } catch {
+        /* ignore load errors */
+      }
+    })();
+    return () => {
+      active = false;
+    };
+  }, [workspaceSlug, projectId, memberPk]);
+
+  if (team !== "bd") return <span className="text-xs text-placeholder">—</span>;
+
+  const save = async (next: string[]) => {
+    if (!memberPk) return;
+    const prev = selected;
+    setSelected(next);
+    setBusy(true);
+    try {
+      await workspaceService.updateProjectMemberProfiles(workspaceSlug, projectId, memberPk, next);
+    } catch (err: unknown) {
+      setSelected(prev);
+      const error = err as { error?: string };
+      setToast({ type: TOAST_TYPE.ERROR, title: "Error!", message: error?.error ?? "Could not update profiles." });
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const options = available.map((o) => ({ value: o.id, query: o.name, content: <span>{o.name}</span> }));
+  const label = (
+    <span className={selected.length ? "" : "text-placeholder"}>
+      {selected.length ? `${selected.length} profile${selected.length > 1 ? "s" : ""}` : "None"}
+    </span>
+  );
+
+  return (
+    <CustomSearchSelect
+      multiple
+      options={options}
+      value={selected}
+      onChange={(vals: string[]) => save(vals)}
+      label={label}
+      disabled={busy || !memberPk}
+      className="w-40"
+      buttonClassName="border-none bg-transparent px-2 h-7.5 text-body-xs-regular hover:bg-layer-1"
+      optionsClassName="w-56"
+    />
   );
 });

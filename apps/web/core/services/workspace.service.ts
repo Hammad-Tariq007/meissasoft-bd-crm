@@ -184,11 +184,12 @@ export class WorkspaceService extends APIService {
       });
   }
 
-  // --- BD CRM profile assignments (Phase 2) ---
+  // --- BD CRM profile assignments (Phase 2 — PROJECT-SCOPED) ---
 
-  // Manager-only: a BD member's assigned Profile options + the available options.
-  async getWorkspaceMemberProfiles(
+  // Manager-only: a BD member's assigned Profile options + available options for a project.
+  async getProjectMemberProfiles(
     workspaceSlug: string,
+    projectId: string,
     memberId: string
   ): Promise<{
     member: string;
@@ -196,20 +197,21 @@ export class WorkspaceService extends APIService {
     profile_option_ids: string[];
     available: { id: string; name: string }[];
   }> {
-    return this.get(`/api/workspaces/${workspaceSlug}/members/${memberId}/profiles/`)
+    return this.get(`/api/workspaces/${workspaceSlug}/projects/${projectId}/members/${memberId}/profiles/`)
       .then((response) => response?.data)
       .catch((error) => {
         throw error?.response?.data;
       });
   }
 
-  // Manager-only: replace a BD member's profile assignments.
-  async updateWorkspaceMemberProfiles(
+  // Manager-only: replace a BD member's profile assignments for a project.
+  async updateProjectMemberProfiles(
     workspaceSlug: string,
+    projectId: string,
     memberId: string,
     profileOptionIds: string[]
   ): Promise<{ member: string; profile_option_ids: string[] }> {
-    return this.patch(`/api/workspaces/${workspaceSlug}/members/${memberId}/profiles/`, {
+    return this.patch(`/api/workspaces/${workspaceSlug}/projects/${projectId}/members/${memberId}/profiles/`, {
       profile_option_ids: profileOptionIds,
     })
       .then((response) => response?.data)
@@ -218,11 +220,12 @@ export class WorkspaceService extends APIService {
       });
   }
 
-  // Current user's own restriction state + assigned option ids (for the lead Profile dropdown filter).
+  // Current user's restriction state + assigned option ids for a project (lead dropdown filter).
   async getMyProfileAssignments(
-    workspaceSlug: string
+    workspaceSlug: string,
+    projectId: string
   ): Promise<{ restricted: boolean; profile_option_ids: string[]; can_manage_assignments: boolean }> {
-    return this.get(`/api/workspaces/${workspaceSlug}/bd/my-profiles/`)
+    return this.get(`/api/workspaces/${workspaceSlug}/projects/${projectId}/bd/my-profiles/`)
       .then((response) => response?.data)
       .catch((error) => {
         throw error?.response?.data;

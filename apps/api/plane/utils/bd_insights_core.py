@@ -183,14 +183,16 @@ def is_restricted_bd(user, workspace_slug: str) -> bool:
     return True
 
 
-def assigned_profile_option_ids(user, workspace_slug: str) -> set:
-    """The set of Profile CustomFieldOption ids assigned to this member (id-based, so
-    renaming an option's label never changes what is assigned)."""
+def assigned_profile_option_ids(user, workspace_slug: str, project_id) -> set:
+    """The set of Profile CustomFieldOption ids assigned to this member IN THIS PROJECT
+    (id-based, so renaming an option's label never changes what is assigned). Assignments
+    are project-scoped: a BD can have different profiles in different projects."""
     return set(
         ProfileAssignment.objects.filter(
             bd_member__workspace__slug=workspace_slug,
             bd_member__member=user,
             bd_member__is_active=True,
+            project_id=project_id,
         ).values_list("profile_option_id", flat=True)
     )
 
@@ -207,8 +209,8 @@ def bd_create_profile_error(user, workspace_slug: str, project_id, profile_optio
     oid = str(profile_option_id) if profile_option_id else ""
     if not oid:
         return (403, "As a BD you must create the lead with a Profile assigned to you.")
-    if oid not in {str(x) for x in assigned_profile_option_ids(user, workspace_slug)}:
-        return (403, "You can only create a lead with a profile assigned to you.")
+    if oid not in {str(x) for x in assigned_profile_option_ids(user, workspace_slug, project_id)}:
+        return (403, "You can only create a lead with a profile assigned to you in this project.")
     return None
 
 

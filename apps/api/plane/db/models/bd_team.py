@@ -4,6 +4,10 @@
 # to any Plane core table and upstream merges stay clean. Assignments are id-based
 # (profile_option → CustomFieldOption.id, a stable UUID), so renaming a profile option's
 # label never affects existing assignments.
+#
+# Assignments are PROJECT-SCOPED: a BD's allowed profiles are set per project, so the same
+# BD can have different profiles in different projects. (Team on WorkspaceMember stays
+# workspace-level — Phase 1, untouched.)
 
 from django.db import models
 
@@ -11,14 +15,16 @@ from .base import BaseModel
 
 
 class ProfileAssignment(BaseModel):
-    """Maps a BD (WorkspaceMember, team="bd") to a Profile option they may use on leads.
-
-    One-to-many: a BD can hold multiple rows (one per assigned profile option). The
-    profile is referenced by its CustomFieldOption id, not its name.
+    """Maps a BD (WorkspaceMember, team="bd") to a Profile option they may use on a
+    project's leads. One-to-many: a BD can hold multiple rows (one per assigned option
+    per project). The profile is referenced by its CustomFieldOption id, not its name.
     """
 
     workspace = models.ForeignKey(
         "db.Workspace", on_delete=models.CASCADE, related_name="profile_assignments"
+    )
+    project = models.ForeignKey(
+        "db.Project", on_delete=models.CASCADE, related_name="profile_assignments"
     )
     bd_member = models.ForeignKey(
         "db.WorkspaceMember", on_delete=models.CASCADE, related_name="profile_assignments"
@@ -34,11 +40,11 @@ class ProfileAssignment(BaseModel):
         ordering = ("-created_at",)
         constraints = [
             models.UniqueConstraint(
-                fields=["bd_member", "profile_option"],
+                fields=["project", "bd_member", "profile_option"],
                 condition=models.Q(deleted_at__isnull=True),
-                name="uniq_bd_member_profile_option_when_not_deleted",
+                name="uniq_project_bd_member_profile_option_when_not_deleted",
             )
         ]
 
     def __str__(self):
-        return f"{self.bd_member_id} -> {self.profile_option_id}"
+        return f"{self.project_id}:{self.bd_member_id} -> {self.profile_option_id}"
