@@ -32,6 +32,9 @@ export interface RowData {
   // Present at runtime because the table casts IWorkspaceMember rows to RowData;
   // the flag sits on the membership (row), not on the nested user object.
   can_view_analytics?: boolean;
+  // BD CRM team layer (Phase 1): "bd" | "dev" | null, and the team-lead flag.
+  team?: string | null;
+  is_team_lead?: boolean;
 }
 
 type NameProps = {
@@ -227,6 +230,82 @@ export const AnalyticsAccessColumn = observer(function AnalyticsAccessColumn(pro
           }
         }}
       />
+    </div>
+  );
+});
+
+type TeamColumnProps = {
+  rowData: RowData;
+  workspaceSlug: string | string[] | undefined;
+};
+
+const TEAM_OPTIONS: { value: string | null; label: string }[] = [
+  { value: null, label: "Unassigned" },
+  { value: "bd", label: "BD" },
+  { value: "dev", label: "Dev" },
+];
+
+/**
+ * Owner-only column: set a member's team (BD/Dev/unassigned) and team-lead flag.
+ * Rendered only for the workspace owner (gated in useMemberColumns); the server
+ * independently enforces owner-only writes and one-lead-per-team.
+ */
+export const TeamColumn = observer(function TeamColumn({ rowData, workspaceSlug }: TeamColumnProps) {
+  const {
+    workspace: { updateMemberTeam },
+  } = useMember();
+  const [isUpdating, setIsUpdating] = useState(false);
+
+  if (rowData.is_active === false) return null;
+  const team = rowData.team ?? null;
+  const isLead = !!rowData.is_team_lead;
+  const teamLabel = TEAM_OPTIONS.find((o) => o.value === team)?.label ?? "Unassigned";
+
+  const apply = async (next: { team: string | null; is_team_lead: boolean }) => {
+    if (!workspaceSlug) return;
+    setIsUpdating(true);
+    try {
+      await updateMemberTeam(workspaceSlug.toString(), rowData.member.id, next);
+    } catch (err: unknown) {
+      const error = err as { error?: string };
+      setToast({
+        type: TOAST_TYPE.ERROR,
+        title: "Error!",
+        message: error?.error ?? "Could not update team. Please try again.",
+      });
+    } finally {
+      setIsUpdating(false);
+    }
+  };
+
+  return (
+    <div className="flex items-center gap-3">
+      <CustomSelect
+        value={team}
+        onChange={(value: string | null) =>
+          // Clearing the team also clears the lead flag (a lead must have a team).
+          apply({ team: value, is_team_lead: value ? isLead : false })
+        }
+        label={<span>{teamLabel}</span>}
+        buttonClassName="!px-0 !justify-start hover:bg-surface-1 border-none"
+        className="w-28 rounded-md p-0"
+        disabled={isUpdating || !workspaceSlug}
+        input
+      >
+        {TEAM_OPTIONS.map((option) => (
+          <CustomSelect.Option key={option.label} value={option.value}>
+            {option.label}
+          </CustomSelect.Option>
+        ))}
+      </CustomSelect>
+      <span className="text-xs text-custom-text-300 flex items-center gap-1.5">
+        <ToggleSwitch
+          value={isLead}
+          disabled={isUpdating || !team}
+          onChange={() => apply({ team, is_team_lead: !isLead })}
+        />
+        Lead
+      </span>
     </div>
   );
 });

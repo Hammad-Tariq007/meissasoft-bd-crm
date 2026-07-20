@@ -22,6 +22,7 @@ from plane.app.serializers import (
 )
 from plane.app.views.base import BaseAPIView
 from plane.db.models import Project, ProjectMember, Workspace, WorkspaceMember, DraftIssue
+from plane.db.models.workspace import WorkspaceTeam
 from plane.utils.cache import invalidate_cache
 
 from .. import BaseViewSet
@@ -50,7 +51,9 @@ class WorkSpaceMemberViewSet(BaseViewSet):
         workspace_members = self.get_queryset()
         if workspace_member.role > 5:
             serializer = WorkspaceMemberAdminSerializer(
-                workspace_members, fields=("id", "member", "role", "can_view_analytics"), many=True
+                workspace_members,
+                fields=("id", "member", "role", "can_view_analytics", "team", "is_team_lead"),
+                many=True,
             )
         else:
             serializer = WorkSpaceMemberSerializer(workspace_members, fields=("id", "member", "role"), many=True)
@@ -70,7 +73,9 @@ class WorkSpaceMemberViewSet(BaseViewSet):
             )
 
         if workspace_member.role > ROLE.GUEST.value:
-            serializer = WorkspaceMemberAdminSerializer(member, fields=("id", "member", "role", "can_view_analytics"))
+            serializer = WorkspaceMemberAdminSerializer(
+                member, fields=("id", "member", "role", "can_view_analytics", "team", "is_team_lead")
+            )
         else:
             serializer = WorkSpaceMemberSerializer(member, fields=("id", "member", "role"))
         return Response(serializer.data, status=status.HTTP_200_OK)
@@ -124,6 +129,69 @@ class WorkSpaceMemberViewSet(BaseViewSet):
         workspace_member.save(update_fields=["can_view_analytics", "updated_at"])
         serializer = WorkspaceMemberAdminSerializer(
             workspace_member, fields=("id", "member", "role", "can_view_analytics")
+        )
+        return Response(serializer.data, status=status.HTTP_200_OK)
+
+    @allow_permission(allowed_roles=[ROLE.ADMIN], level="WORKSPACE")
+    def set_team(self, request, slug, pk):
+        """Set a member's team (BD/Dev/unassigned) and team-lead flag. Owner-only —
+        like set_analytics_access, deliberately stricter than the ADMIN decorator.
+        App-level rule (no DB constraint yet): a team has at most one lead."""
+        if not Workspace.objects.filter(slug=slug, owner=request.user).exists():
+            return Response(
+                {"error": "Only the workspace owner can change team assignments."},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+        workspace_member = WorkspaceMember.objects.filter(
+            pk=pk, workspace__slug=slug, member__is_bot=False, is_active=True
+        ).first()
+        if workspace_member is None:
+            return Response({"error": "Member not found."}, status=status.HTTP_404_NOT_FOUND)
+
+        # Fall back to the current value for whichever field is omitted.
+        team = request.data.get("team", workspace_member.team)
+        if team in ("", None):
+            team = None
+        is_lead = request.data.get("is_team_lead", workspace_member.is_team_lead)
+
+        valid_teams = {choice.value for choice in WorkspaceTeam}
+        if team is not None and team not in valid_teams:
+            return Response(
+                {"error": f"`team` must be one of {sorted(valid_teams)} or null."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        if not isinstance(is_lead, bool):
+            return Response(
+                {"error": "`is_team_lead` (boolean) is required."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        if is_lead and team is None:
+            return Response(
+                {"error": "A team lead must belong to a team; set `team` first."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        # App-level enforcement: at most one lead per team (DB constraint deferred).
+        if is_lead:
+            clash = (
+                WorkspaceMember.objects.filter(
+                    workspace__slug=slug, team=team, is_team_lead=True, is_active=True
+                )
+                .exclude(pk=workspace_member.pk)
+                .select_related("member")
+                .first()
+            )
+            if clash is not None:
+                return Response(
+                    {"error": f"The {team} team already has a lead ({clash.member.email}). Demote them first."},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
+        workspace_member.team = team
+        workspace_member.is_team_lead = is_lead
+        workspace_member.save(update_fields=["team", "is_team_lead", "updated_at"])
+        serializer = WorkspaceMemberAdminSerializer(
+            workspace_member,
+            fields=("id", "member", "role", "can_view_analytics", "team", "is_team_lead"),
         )
         return Response(serializer.data, status=status.HTTP_200_OK)
 

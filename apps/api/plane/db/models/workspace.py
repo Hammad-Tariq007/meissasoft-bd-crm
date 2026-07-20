@@ -19,6 +19,13 @@ from plane.utils.color import get_random_color
 ROLE_CHOICES = ((20, "Admin"), (15, "Member"), (5, "Guest"))
 
 
+class WorkspaceTeam(models.TextChoices):
+    """BD CRM team attribute layered on top of Plane roles (NOT a new role tier)."""
+
+    BD = "bd", "BD"
+    DEV = "dev", "Dev"
+
+
 def get_default_props():
     return {
         "filters": {
@@ -207,6 +214,12 @@ class WorkspaceMember(BaseModel):
     # Additive per-member flag (NOT a new role tier): grants access to the
     # admin-only BD Insights analytics. Toggled only by the workspace owner.
     can_view_analytics = models.BooleanField(default=False)
+    # --- BD CRM team layer (Phase 1): additive attributes over Plane roles, isolated
+    # here so upstream Plane changes stay easy to merge. `team` groups a member as BD
+    # or Dev (null = unassigned); `is_team_lead` marks that team's lead (BD/Dev Admin).
+    # Neither touches Plane's role engine. Owner-set only (see set_team). ---
+    team = models.CharField(max_length=10, choices=WorkspaceTeam.choices, null=True, blank=True)
+    is_team_lead = models.BooleanField(default=False)
     view_props = models.JSONField(default=get_default_props)
     default_props = models.JSONField(default=get_default_props)
     issue_props = models.JSONField(default=get_issue_props)

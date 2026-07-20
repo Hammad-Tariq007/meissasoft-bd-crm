@@ -28,6 +28,8 @@ export interface IWorkspaceMembership {
   role: EUserPermissions;
   is_active?: boolean;
   can_view_analytics?: boolean;
+  team?: string | null;
+  is_team_lead?: boolean;
 }
 
 export interface IWorkspaceMemberStore {
@@ -53,6 +55,11 @@ export interface IWorkspaceMemberStore {
   // crud actions
   updateMember: (workspaceSlug: string, userId: string, data: { role: EUserPermissions }) => Promise<void>;
   updateMemberAnalyticsAccess: (workspaceSlug: string, userId: string, canViewAnalytics: boolean) => Promise<void>;
+  updateMemberTeam: (
+    workspaceSlug: string,
+    userId: string,
+    data: { team: string | null; is_team_lead: boolean }
+  ) => Promise<void>;
   removeMemberFromWorkspace: (workspaceSlug: string, userId: string) => Promise<void>;
   // invite actions
   inviteMembersToWorkspace: (workspaceSlug: string, data: IWorkspaceBulkInviteFormData) => Promise<void>;
@@ -93,6 +100,7 @@ export class WorkspaceMemberStore implements IWorkspaceMemberStore {
       fetchWorkspaceMembers: action,
       updateMember: action,
       updateMemberAnalyticsAccess: action,
+      updateMemberTeam: action,
       removeMemberFromWorkspace: action,
       fetchWorkspaceMemberInvitations: action,
       updateMemberInvitation: action,
@@ -214,6 +222,8 @@ export class WorkspaceMemberStore implements IWorkspaceMemberStore {
       member: this.memberRoot?.memberMap?.[workspaceMember.member],
       is_active: workspaceMember.is_active,
       can_view_analytics: workspaceMember.can_view_analytics,
+      team: workspaceMember.team,
+      is_team_lead: workspaceMember.is_team_lead,
     };
     return memberDetails;
   });
@@ -248,6 +258,8 @@ export class WorkspaceMemberStore implements IWorkspaceMemberStore {
             role: member.role,
             is_active: member.is_active,
             can_view_analytics: member.can_view_analytics,
+            team: member.team,
+            is_team_lead: member.is_team_lead,
           });
         });
       });
@@ -302,6 +314,39 @@ export class WorkspaceMemberStore implements IWorkspaceMemberStore {
       // revert on error (e.g. a non-owner is rejected with 403)
       runInAction(() => {
         set(this.workspaceMemberMap, [workspaceSlug, userId, "can_view_analytics"], previous);
+      });
+      throw error;
+    }
+  };
+
+  /**
+   * @description owner-only: set a member's team (BD/Dev/null) and team-lead flag
+   * @param workspaceSlug
+   * @param userId
+   * @param data { team, is_team_lead }
+   */
+  updateMemberTeam = async (
+    workspaceSlug: string,
+    userId: string,
+    data: { team: string | null; is_team_lead: boolean }
+  ) => {
+    const memberDetails = this.getWorkspaceMemberDetails(userId);
+    if (!memberDetails) throw new Error("Member not found");
+    const prev = {
+      team: this.workspaceMemberMap?.[workspaceSlug]?.[userId]?.team,
+      is_team_lead: this.workspaceMemberMap?.[workspaceSlug]?.[userId]?.is_team_lead,
+    };
+    try {
+      runInAction(() => {
+        set(this.workspaceMemberMap, [workspaceSlug, userId, "team"], data.team);
+        set(this.workspaceMemberMap, [workspaceSlug, userId, "is_team_lead"], data.is_team_lead);
+      });
+      await this.workspaceService.updateWorkspaceMemberTeam(workspaceSlug, memberDetails.id, data);
+    } catch (error) {
+      // revert on error (e.g. non-owner 403, or one-lead-per-team 400)
+      runInAction(() => {
+        set(this.workspaceMemberMap, [workspaceSlug, userId, "team"], prev.team);
+        set(this.workspaceMemberMap, [workspaceSlug, userId, "is_team_lead"], prev.is_team_lead);
       });
       throw error;
     }

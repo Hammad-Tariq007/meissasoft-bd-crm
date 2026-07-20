@@ -170,6 +170,20 @@ export class WorkspaceService extends APIService {
       });
   }
 
+  // Owner-only: set a member's team (BD/Dev/unassigned) and team-lead flag.
+  // Distinct owner-only endpoint, like analytics access.
+  async updateWorkspaceMemberTeam(
+    workspaceSlug: string,
+    memberId: string,
+    data: { team: string | null; is_team_lead: boolean }
+  ): Promise<IWorkspaceMember> {
+    return this.patch(`/api/workspaces/${workspaceSlug}/members/${memberId}/team/`, data)
+      .then((response) => response?.data)
+      .catch((error) => {
+        throw error?.response?.data;
+      });
+  }
+
   async deleteWorkspaceMember(workspaceSlug: string, memberId: string): Promise<any> {
     return this.delete(`/api/workspaces/${workspaceSlug}/members/${memberId}/`)
       .then((response) => response?.data)

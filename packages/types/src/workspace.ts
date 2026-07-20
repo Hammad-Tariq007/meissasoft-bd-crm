@@ -94,6 +94,9 @@ export interface IWorkspaceMember {
   is_active?: boolean;
   // Owner-granted flag controlling BD Insights analytics access (shown to the owner only).
   can_view_analytics?: boolean;
+  // BD CRM team layer (Phase 1): "bd" | "dev" | null (unassigned), and the team-lead flag.
+  team?: string | null;
+  is_team_lead?: boolean;
 }
 
 export interface IWorkspaceMemberMe {
