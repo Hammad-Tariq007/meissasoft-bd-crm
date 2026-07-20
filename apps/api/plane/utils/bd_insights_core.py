@@ -195,6 +195,38 @@ def assigned_profile_option_ids(user, workspace_slug: str) -> set:
     )
 
 
+def bd_create_profile_error(user, workspace_slug: str, project_id, profile_option_id):
+    """Validate a restricted BD's lead-creation: they MUST create with an assigned Profile
+    supplied inline (`profile_option_id`). Returns (status, message) to REJECT, or None to
+    allow. Fail closed: if the Profile field can't be resolved, block. Non-restricted users
+    are never blocked here."""
+    if not is_restricted_bd(user, workspace_slug):
+        return None
+    if resolve_profile_field_id(workspace_slug, project_id) is None:
+        return (403, "Profile field is misconfigured; lead creation is blocked. Contact an admin.")
+    oid = str(profile_option_id) if profile_option_id else ""
+    if not oid:
+        return (403, "As a BD you must create the lead with a Profile assigned to you.")
+    if oid not in {str(x) for x in assigned_profile_option_ids(user, workspace_slug)}:
+        return (403, "You can only create a lead with a profile assigned to you.")
+    return None
+
+
+def set_profile_value(workspace_slug: str, project_id, issue_id, workspace_id, option_id) -> None:
+    """Persist the Profile single-select value on a freshly created lead (upsert). No-op if
+    the Profile field can't be resolved or no option is given."""
+    field_id = resolve_profile_field_id(workspace_slug, project_id)
+    if field_id is None or not option_id:
+        return
+    obj = CustomFieldValue.objects.filter(field_id=field_id, issue_id=issue_id).first()
+    if obj is None:
+        obj = CustomFieldValue(
+            field_id=field_id, issue_id=issue_id, project_id=project_id, workspace_id=workspace_id
+        )
+    obj.value_option_id = option_id
+    obj.save()
+
+
 def collect_field_values(
     issue_ids: List[uuid.UUID], field_ids: List[uuid.UUID]
 ) -> Dict[uuid.UUID, Dict[uuid.UUID, Dict[str, Any]]]:

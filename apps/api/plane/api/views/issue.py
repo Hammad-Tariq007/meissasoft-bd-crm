@@ -87,6 +87,7 @@ from plane.bgtasks.storage_metadata_task import get_asset_object_metadata
 from .base import BaseAPIView
 from plane.utils.host import base_host
 from plane.utils.issue_relation_mapper import get_actual_relation
+from plane.utils import bd_insights_core as bd_core
 from plane.bgtasks.webhook_task import model_activity
 from plane.app.permissions import ROLE
 from plane.utils.openapi import (
@@ -431,6 +432,13 @@ class IssueListCreateAPIEndpoint(BaseAPIView):
         """
         project = Project.objects.get(pk=project_id)
 
+        # BD CRM Phase 2: a restricted BD must create a lead WITH an assigned Profile
+        # (inline `profile_option_id`). Same guard as the app API — closes the API gap.
+        profile_option_id = request.data.get("profile_option_id")
+        profile_error = bd_core.bd_create_profile_error(request.user, slug, project_id, profile_option_id)
+        if profile_error:
+            return Response({"error": profile_error[1]}, status=profile_error[0])
+
         serializer = IssueSerializer(
             data=request.data,
             context={
@@ -466,6 +474,11 @@ class IssueListCreateAPIEndpoint(BaseAPIView):
                 )
 
             serializer.save()
+            # Persist the Profile atomically for a restricted BD's new lead.
+            if profile_option_id and bd_core.is_restricted_bd(request.user, slug):
+                bd_core.set_profile_value(
+                    slug, project_id, serializer.data["id"], project.workspace_id, str(profile_option_id)
+                )
             # Refetch the issue
             issue = Issue.objects.filter(workspace__slug=slug, project_id=project_id, pk=serializer.data["id"]).first()
             issue.created_at = request.data.get("created_at", timezone.now())
