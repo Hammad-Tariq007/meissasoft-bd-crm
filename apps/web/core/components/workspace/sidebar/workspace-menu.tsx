@@ -12,6 +12,7 @@ import { Disclosure, Transition } from "@headlessui/react";
 import { AnalyticsIcon, CycleIcon, ProjectIcon, ViewsIcon } from "@plane/propel/icons";
 import { EUserWorkspaceRoles } from "@plane/types";
 // hooks
+import { useCanViewBDInsights } from "@/hooks/use-can-view-bd-insights";
 import useLocalStorage from "@/hooks/use-local-storage";
 // local imports
 import { SidebarWorkspaceMenuHeader } from "./workspace-menu-header";
@@ -20,6 +21,8 @@ import { SidebarWorkspaceMenuItem } from "./workspace-menu-item";
 export const SidebarWorkspaceMenu = observer(function SidebarWorkspaceMenu() {
   // router params
   const { workspaceSlug } = useParams();
+  // analytics access — same gate the backend enforces (admin AND (owner OR can_view_analytics))
+  const canViewBDInsights = useCanViewBDInsights();
   // local storage
   const { setValue: toggleWorkspaceMenu, storedValue } = useLocalStorage<boolean>("is_workspace_menu_open", true);
   // derived values
@@ -70,9 +73,11 @@ export const SidebarWorkspaceMenu = observer(function SidebarWorkspaceMenu() {
       >
         {isWorkspaceMenuOpen && (
           <Disclosure.Panel as="div" className="mt-0.5 flex flex-col gap-0.5" static>
-            {SIDEBAR_WORKSPACE_MENU_ITEMS.map((item) => (
-              <SidebarWorkspaceMenuItem key={item.key} item={item} />
-            ))}
+            {SIDEBAR_WORKSPACE_MENU_ITEMS.filter((item) => item.key !== "analytics" || canViewBDInsights).map(
+              (item) => (
+                <SidebarWorkspaceMenuItem key={item.key} item={item} />
+              )
+            )}
           </Disclosure.Panel>
         )}
       </Transition>
