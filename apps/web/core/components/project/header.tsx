@@ -31,11 +31,8 @@ export const ProjectsBaseHeader = observer(function ProjectsBaseHeader() {
   const { allowPermissions } = useUserPermissions();
 
   const pathname = usePathname();
-  // auth
-  const isAuthorizedUser = allowPermissions(
-    [EUserPermissions.ADMIN, EUserPermissions.MEMBER],
-    EUserPermissionsLevel.WORKSPACE
-  );
+  // auth — project creation is workspace-admin-only
+  const isAuthorizedUser = allowPermissions([EUserPermissions.ADMIN], EUserPermissionsLevel.WORKSPACE);
   const isArchived = pathname.includes("/archives");
 
   return (

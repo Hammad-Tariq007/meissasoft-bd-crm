@@ -249,7 +249,9 @@ class ProjectViewSet(BaseViewSet):
         serializer = ProjectListSerializer(project)
         return Response(serializer.data, status=status.HTTP_200_OK)
 
-    @allow_permission([ROLE.ADMIN, ROLE.MEMBER], level="WORKSPACE")
+    # BD CRM: project creation is workspace-admin-only (previously allowed role MEMBER too).
+    # Team leads are intentionally NOT excepted — creating projects is an admin action.
+    @allow_permission([ROLE.ADMIN], level="WORKSPACE")
     def create(self, request, slug):
         workspace = Workspace.objects.get(slug=slug)
 

@@ -47,10 +47,8 @@ export const usePowerKCreationCommandsRecord = (): Record<TPowerKCreationCommand
   } = useCommandPalette();
   // derived values
   const canCreateWorkItem = canPerformAnyCreateAction && workspaceProjectIds && workspaceProjectIds.length > 0;
-  const canCreateProject = allowPermissions(
-    [EUserPermissions.ADMIN, EUserPermissions.MEMBER],
-    EUserPermissionsLevel.WORKSPACE
-  );
+  // project creation is workspace-admin-only
+  const canCreateProject = allowPermissions([EUserPermissions.ADMIN], EUserPermissionsLevel.WORKSPACE);
   const hasProjectMemberLevelPermissions = (ctx: TPowerKContext) =>
     allowPermissions(
       [EUserProjectRoles.ADMIN, EUserProjectRoles.MEMBER],

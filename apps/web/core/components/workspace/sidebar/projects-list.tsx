@@ -53,11 +53,8 @@ export const SidebarProjectsList = observer(function SidebarProjectsList() {
   const { workspaceSlug } = useParams();
   const pathname = usePathname();
 
-  // auth
-  const isAuthorizedUser = allowPermissions(
-    [EUserPermissions.ADMIN, EUserPermissions.MEMBER],
-    EUserPermissionsLevel.WORKSPACE
-  );
+  // auth — project creation is workspace-admin-only (gates the create-project entry points below)
+  const isAuthorizedUser = allowPermissions([EUserPermissions.ADMIN], EUserPermissionsLevel.WORKSPACE);
 
   // Compute limited projects for main sidebar
   const displayedProjects = projectPreferences.showLimitedProjects
