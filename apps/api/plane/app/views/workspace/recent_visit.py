@@ -12,6 +12,7 @@ from plane.app.serializers import WorkspaceRecentVisitSerializer
 # Modules imports
 from ..base import BaseViewSet
 from plane.app.permissions import allow_permission, ROLE
+from plane.utils import bd_visibility as bd_vis
 
 
 class UserRecentVisitViewSet(BaseViewSet):
@@ -31,6 +32,12 @@ class UserRecentVisitViewSet(BaseViewSet):
             user_recent_visits = user_recent_visits.filter(entity_name=entity_name)
 
         user_recent_visits = user_recent_visits.filter(entity_name__in=["issue", "page", "project"])
+
+        # BD CRM Phase 3: a restricted BD must not see recent-visit rows for leads outside
+        # their assigned profiles (stale rows from before the restriction leak the title).
+        user_recent_visits = bd_vis.filter_issue_entity_rows(
+            user_recent_visits, request.user, slug, entity_field="entity_name"
+        )
 
         serializer = WorkspaceRecentVisitSerializer(user_recent_visits[:20], many=True)
         return Response(serializer.data, status=status.HTTP_200_OK)

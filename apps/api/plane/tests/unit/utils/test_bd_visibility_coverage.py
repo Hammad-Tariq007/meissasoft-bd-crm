@@ -52,11 +52,18 @@ SCOPE_CALLS = {
     "scope_intake_issues",
     "restricted_issue_q",
     "filter_issue_notifications",
+    "filter_issue_entity_rows",
     "is_issue_visible",
 }
 
 # Nodes whose subtree is an aggregate sub-select, NOT the returned rows.
 SUBQUERY_FUNCS = {"Subquery", "Exists"}
+
+# Models that hydrate an issue (lead) into a client response by (kind, entity_identifier) —
+# i.e. a leak surface the Issue-queryset scan can't see, because the issue is resolved inside
+# a serializer, not via an Issue queryset. Any read method touching these must route through
+# plane.utils.bd_visibility (filter_issue_entity_rows / filter_issue_notifications).
+ENTITY_HYDRATION_MODELS = {"UserRecentVisit", "UserFavorite", "Notification"}
 
 # Paths that build an Issue queryset but are intentionally NOT profile-scoped.
 # Key: "<relative module path>::<Class>.<method>". Value: the reason (kept in-code so
@@ -86,6 +93,11 @@ ALLOWLIST = {
         "(b) write path: marks the acting user's own notifications read; gathers own created-issue ids only"
     ),
 }
+
+# Read methods over an ENTITY_HYDRATION_MODELS queryset that are intentionally NOT scoped
+# (e.g. count-only or non-issue-bearing). Key/value shape matches ALLOWLIST. ADD ONLY WITH
+# JUSTIFICATION.
+ENTITY_HYDRATION_ALLOWLIST = {}
 
 
 def _iter_view_files():
@@ -267,6 +279,65 @@ def _collect_unscoped():
     return unscoped
 
 
+def _within_correlated_subquery(node, parents):
+    """True if the statement containing ``node`` references ``OuterRef`` — i.e. this
+    ``<Model>.objects`` is a correlated sub-select (e.g. an ``is_favorite`` Exists annotation
+    assigned to a variable), not a returned list read."""
+    cur = node
+    while cur in parents and not isinstance(parents[cur], (ast.FunctionDef, ast.AsyncFunctionDef)):
+        cur = parents[cur]
+    for n in ast.walk(cur):
+        if isinstance(n, ast.Name) and n.id == "OuterRef":
+            return True
+    return False
+
+
+def _queries_entity_hydration_model(func_node, parents):
+    """The function references a TOP-LEVEL ``<Model>.objects`` for a model that hydrates an
+    issue by entity_identifier (UserRecentVisit / UserFavorite / Notification). References
+    inside a Subquery()/Exists()/annotate(), or in a correlated (OuterRef) sub-select, are
+    ignored — those are 'is this favorited?' style flags on non-issue entities, not an
+    entity-hydrating list read."""
+    hits = set()
+    for node in ast.walk(func_node):
+        if (
+            isinstance(node, ast.Attribute)
+            and node.attr == "objects"
+            and isinstance(node.value, ast.Name)
+            and node.value.id in ENTITY_HYDRATION_MODELS
+            and not _within_subquery_context(node, parents)
+            and not _within_correlated_subquery(node, parents)
+        ):
+            hits.add(node.value.id)
+    return hits
+
+
+def _collect_unscoped_entity_hydration():
+    """Return {key: (path, lineno)} for every READ method that queries an entity-hydration
+    model without routing through plane.utils.bd_visibility."""
+    unscoped = {}
+    for path in _iter_view_files():
+        try:
+            tree = ast.parse(path.read_text())
+        except SyntaxError as exc:  # pragma: no cover
+            pytest.fail(f"Could not parse {path}: {exc}")
+        parents = _build_parent_map(tree)
+        rel = path.relative_to(API_ROOT).as_posix()
+        for func in ast.walk(tree):
+            if not isinstance(func, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                continue
+            if func.name not in READ_METHODS:
+                continue
+            if not _queries_entity_hydration_model(func, parents):
+                continue
+            if _references_scope(func):
+                continue
+            cls_name = _enclosing_class_name(func, parents)
+            qualname = f"{cls_name}.{func.name}" if cls_name else func.name
+            unscoped[f"{rel}::{qualname}"] = (rel, func.lineno)
+    return unscoped
+
+
 @pytest.mark.unit
 class TestBDVisibilityCoverage:
     """Fail CI when a read endpoint returns Issue data without profile scoping."""
@@ -321,5 +392,39 @@ class TestBDVisibilityCoverage:
         assert not stale, (
             "ALLOWLIST entries no longer match an unscoped endpoint (now scoped or removed) "
             "— delete the stale entries so the guard stays honest:\n"
+            + "\n".join(f"  - {k}" for k in stale)
+        )
+
+    def test_sanity_entity_hydration_scanner_detects_unscoped(self, tmp_path):
+        """The entity-hydration scanner must catch an unscoped recents/favorites-style read."""
+        sample = tmp_path / "leaky_recents.py"
+        sample.write_text(
+            "from plane.db.models import UserRecentVisit\n"
+            "class LeakyRecents:\n"
+            "    def list(self, request, slug):\n"
+            "        return UserRecentVisit.objects.filter(workspace__slug=slug)\n"
+        )
+        tree = ast.parse(sample.read_text())
+        parents = _build_parent_map(tree)
+        method = tree.body[1].body[0]
+        assert _queries_entity_hydration_model(method, parents) == {"UserRecentVisit"}
+        assert _references_scope(method) is False
+
+    def test_no_unscoped_entity_hydration_reads(self):
+        """Every read method touching an entity-hydration model (UserRecentVisit /
+        UserFavorite / Notification) routes through plane.utils.bd_visibility or is
+        allowlisted — closes the class of leak the Issue-queryset scan can't see."""
+        unscoped = _collect_unscoped_entity_hydration()
+        offenders = sorted(set(unscoped) - set(ENTITY_HYDRATION_ALLOWLIST))
+        stale = sorted(set(ENTITY_HYDRATION_ALLOWLIST) - set(unscoped))
+
+        assert not offenders, (
+            "Read method(s) hydrate an issue by entity_identifier without profile scoping — "
+            "route through plane.utils.bd_visibility.filter_issue_entity_rows (or "
+            "filter_issue_notifications), or add to ENTITY_HYDRATION_ALLOWLIST with a reason:\n"
+            + "\n".join(f"  - {k} ({unscoped[k][0]}:{unscoped[k][1]})" for k in offenders)
+        )
+        assert not stale, (
+            "ENTITY_HYDRATION_ALLOWLIST entries no longer match an unscoped read — remove them:\n"
             + "\n".join(f"  - {k}" for k in stale)
         )
