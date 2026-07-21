@@ -15,6 +15,7 @@ from plane.app.views.base import BaseAPIView
 from plane.db.models import UserFavorite, Workspace
 from plane.app.serializers import UserFavoriteSerializer
 from plane.app.permissions import allow_permission, ROLE
+from plane.utils import bd_visibility as bd_vis
 
 
 class WorkspaceFavoriteEndpoint(BaseAPIView):
@@ -31,6 +32,9 @@ class WorkspaceFavoriteEndpoint(BaseAPIView):
                 & Q(project__project_projectmember__is_active=True)
             )
         )
+        # BD CRM Phase 3: a restricted BD must not see favorited leads outside their profiles
+        # (the favorite row carries the lead's title in `name`). Non-issue favorites pass through.
+        favorites = bd_vis.filter_issue_entity_rows(favorites, request.user, slug, entity_field="entity_type")
         serializer = UserFavoriteSerializer(favorites, many=True)
         return Response(serializer.data, status=status.HTTP_200_OK)
 
@@ -93,5 +97,7 @@ class WorkspaceFavoriteGroupEndpoint(BaseAPIView):
                 & Q(project__project_projectmember__is_active=True)
             )
         )
+        # BD CRM Phase 3: same profile scope for favorites inside a folder.
+        favorites = bd_vis.filter_issue_entity_rows(favorites, request.user, slug, entity_field="entity_type")
         serializer = UserFavoriteSerializer(favorites, many=True)
         return Response(serializer.data, status=status.HTTP_200_OK)

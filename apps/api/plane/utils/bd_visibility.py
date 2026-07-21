@@ -76,17 +76,31 @@ def scope_workspace_issues(queryset, user, workspace_slug):
     return queryset.filter(combined)
 
 
-def filter_issue_notifications(notification_qs, user, workspace_slug):
-    """Drop issue notifications that point to a lead the acting user may not see. Keeps
-    non-issue notifications and (for non-restricted users) everything. Strict: involvement
-    does not override the profile rule."""
+def filter_issue_entity_rows(queryset, user, workspace_slug, entity_field="entity_name", issue_value="issue"):
+    """Filter a queryset of rows that reference an entity by (kind, entity_identifier) — e.g.
+    notifications, recent visits, favorites — so a restricted BD never sees a row pointing to
+    a lead they may not see. Rows for the issue kind (`entity_field == issue_value`) are kept
+    only when `entity_identifier` is a currently-visible lead; every other kind passes through.
+
+    No-op for non-restricted users (owners, admins, BD *leads* — whose Phase-3 visibility is
+    unrestricted — and non-BD members). Strict: involvement does not override the profile rule.
+
+    `entity_field` names the kind column: "entity_name" (notifications, recent visits) or
+    "entity_type" (favorites)."""
     if not bd_core.is_restricted_bd(user, workspace_slug):
-        return notification_qs
+        return queryset
     from plane.db.models import Issue
 
     visible = scope_workspace_issues(Issue.objects.filter(workspace__slug=workspace_slug), user, workspace_slug)
-    # entity_name == "issue" rows must reference a visible lead; other entities pass through.
-    return notification_qs.filter(~Q(entity_name="issue") | Q(entity_identifier__in=visible.values("id")))
+    return queryset.filter(
+        ~Q(**{entity_field: issue_value}) | Q(entity_identifier__in=visible.values("id"))
+    )
+
+
+def filter_issue_notifications(notification_qs, user, workspace_slug):
+    """Drop issue notifications that point to a lead the acting user may not see. Thin wrapper
+    over filter_issue_entity_rows (notifications key the kind on `entity_name`)."""
+    return filter_issue_entity_rows(notification_qs, user, workspace_slug, entity_field="entity_name")
 
 
 def scope_intake_issues(intake_qs, user, workspace_slug, project_id):

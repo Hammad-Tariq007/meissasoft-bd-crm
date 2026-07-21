@@ -203,26 +203,36 @@ class UnreadNotificationEndpoint(BaseAPIView):
 
     @allow_permission(allowed_roles=[ROLE.ADMIN, ROLE.MEMBER, ROLE.GUEST], level="WORKSPACE")
     def get(self, request, slug):
+        # BD CRM Phase 3: the unread badge must exclude notifications for leads a restricted
+        # BD can't see, so the count matches the (already-scoped) notification list.
         # Watching Issues Count
         unread_notifications_count = (
+            bd_vis.filter_issue_entity_rows(
+                Notification.objects.filter(
+                    workspace__slug=slug,
+                    receiver_id=request.user.id,
+                    read_at__isnull=True,
+                    archived_at__isnull=True,
+                    snoozed_till__isnull=True,
+                ),
+                request.user,
+                slug,
+            )
+            .exclude(sender__icontains="mentioned")
+            .count()
+        )
+
+        mention_notifications_count = bd_vis.filter_issue_entity_rows(
             Notification.objects.filter(
                 workspace__slug=slug,
                 receiver_id=request.user.id,
                 read_at__isnull=True,
                 archived_at__isnull=True,
                 snoozed_till__isnull=True,
-            )
-            .exclude(sender__icontains="mentioned")
-            .count()
-        )
-
-        mention_notifications_count = Notification.objects.filter(
-            workspace__slug=slug,
-            receiver_id=request.user.id,
-            read_at__isnull=True,
-            archived_at__isnull=True,
-            snoozed_till__isnull=True,
-            sender__icontains="mentioned",
+                sender__icontains="mentioned",
+            ),
+            request.user,
+            slug,
         ).count()
 
         return Response(
