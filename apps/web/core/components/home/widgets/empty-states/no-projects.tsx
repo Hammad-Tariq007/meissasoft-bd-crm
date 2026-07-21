@@ -40,11 +40,8 @@ export const NoProjectsEmptyState = observer(function NoProjectsEmptyState() {
     visited_profile: false,
   });
   const { t } = useTranslation();
-  // derived values
-  const canCreateProject = allowPermissions(
-    [EUserPermissions.ADMIN, EUserPermissions.MEMBER],
-    EUserPermissionsLevel.WORKSPACE
-  );
+  // derived values — project creation is workspace-admin-only
+  const canCreateProject = allowPermissions([EUserPermissions.ADMIN], EUserPermissionsLevel.WORKSPACE);
   const isWorkspaceAdmin = allowPermissions([EUserPermissions.ADMIN], EUserPermissionsLevel.WORKSPACE);
 
   const EMPTY_STATE_DATA = [
