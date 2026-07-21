@@ -24,5 +24,6 @@ from .base import (
     is_project_admin,
     is_issue_assignee,
     can_edit_all_issues,
+    can_bd_edit_lead,
 )
 from .page import ProjectPagePermission

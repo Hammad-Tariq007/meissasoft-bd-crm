@@ -6,6 +6,7 @@
 
 import { EUserPermissions } from "@plane/constants";
 // hooks
+import { useMember } from "@/hooks/store/use-member";
 import { useUser, useUserPermissions } from "@/hooks/store/user";
 
 export type TWorkItemPermissions = {
@@ -26,8 +27,14 @@ export type TWorkItemPermissions = {
 
 /**
  * Ownership-based edit permissions for a work item (CRM lead). Mirrors the
- * backend rule: the assigned BD and any project admin can edit; everyone else
- * gets read-only + comments. Reassignment is admin-only.
+ * backend rule: a project admin, the assigned BD, OR a BD-team member (a BD lead,
+ * or a restricted BD viewing one of their profile-assigned leads) can edit;
+ * everyone else gets read-only + comments. Reassignment is admin-only.
+ *
+ * The BD grant is intentionally coarse here (team === "bd"): Phase-3 visibility on
+ * the backend guarantees a restricted BD only ever receives their profile leads, so
+ * any lead that reaches this hook is one they may edit, and the backend
+ * (can_bd_edit_lead) is the authoritative gate regardless.
  */
 export const useWorkItemPermissions = (
   workspaceSlug: string | null | undefined,
@@ -36,6 +43,9 @@ export const useWorkItemPermissions = (
 ): TWorkItemPermissions => {
   const { data: currentUser } = useUser();
   const { getProjectRoleByWorkspaceSlugAndProjectId } = useUserPermissions();
+  const {
+    workspace: { getWorkspaceMemberDetails },
+  } = useMember();
 
   const projectRole =
     workspaceSlug && projectId ? getProjectRoleByWorkspaceSlugAndProjectId(workspaceSlug, projectId) : undefined;
@@ -43,10 +53,11 @@ export const useWorkItemPermissions = (
   // to project ADMIN, so this single check covers both.
   const isAdmin = projectRole === EUserPermissions.ADMIN;
   const isAssignee = !!currentUser?.id && !!assigneeIds?.includes(currentUser.id);
+  const isBD = !!currentUser?.id && getWorkspaceMemberDetails(currentUser.id)?.team === "bd";
 
   return {
     isAdmin,
-    isEditable: isAdmin || isAssignee,
+    isEditable: isAdmin || isAssignee || isBD,
     canReassign: isAdmin,
   };
 };
