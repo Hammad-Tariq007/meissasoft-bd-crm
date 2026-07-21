@@ -129,6 +129,14 @@ class WorkSpaceMemberViewSet(BaseViewSet):
                 {"error": "`can_view_analytics` (boolean) is required."},
                 status=status.HTTP_400_BAD_REQUEST,
             )
+        # Consistency guard (not a security control — the analytics gate already requires
+        # admin regardless of this flag): the flag only takes effect for workspace admins,
+        # so refuse to set it True on a non-admin member to avoid confusing config.
+        if value and workspace_member.role != ROLE.ADMIN.value:
+            return Response(
+                {"error": "Analytics access can only be granted to workspace admins."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
         workspace_member.can_view_analytics = value
         workspace_member.save(update_fields=["can_view_analytics", "updated_at"])
         serializer = WorkspaceMemberAdminSerializer(
