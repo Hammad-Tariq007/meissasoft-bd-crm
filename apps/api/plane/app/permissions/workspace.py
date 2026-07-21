@@ -29,12 +29,15 @@ class WorkSpaceBasePermission(BasePermission):
         if request.method in SAFE_METHODS:
             return True
 
-        # allow only admins and owners to update the workspace settings
+        # allow only admins (incl. the owner) to update the workspace settings.
+        # BD CRM: previously also allowed role=Member, which let a plain member PATCH
+        # workspace general settings (name/logo/etc.) via the API even though the Settings
+        # nav is hidden from them — tightened to Admin-only to match the intent + the nav gate.
         if request.method in ["PUT", "PATCH"]:
             return WorkspaceMember.objects.filter(
                 member=request.user,
                 workspace__slug=view.workspace_slug,
-                role__in=[Admin, Member],
+                role=Admin,
                 is_active=True,
             ).exists()
 
