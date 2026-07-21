@@ -25,7 +25,6 @@ import { UserAvatar } from "@/components/common/user-avatar";
 import { useMember } from "@/hooks/store/use-member";
 import { useUser, useUserPermissions } from "@/hooks/store/user";
 
-
 export interface RowData {
   member: IWorkspaceMember;
   role: EUserPermissions;
@@ -207,6 +206,17 @@ export const AnalyticsAccessColumn = observer(function AnalyticsAccessColumn(pro
   const [isUpdating, setIsUpdating] = useState(false);
 
   if (rowData.is_active === false) return null;
+
+  // The analytics gate is `admin AND (owner OR can_view_analytics)`, so this flag only has
+  // any effect on Admin rows. Hide the toggle for Member/Guest rows to avoid misleading config.
+  if (rowData.role !== EUserPermissions.ADMIN) {
+    return (
+      <div className="flex w-32">
+        <span className="text-xs text-placeholder">—</span>
+      </div>
+    );
+  }
+
   const enabled = !!rowData.can_view_analytics;
 
   return (
