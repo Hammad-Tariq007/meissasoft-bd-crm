@@ -50,6 +50,7 @@ from plane.bgtasks.event_tracking_task import track_event
 from plane.utils.url import contains_url
 from plane.utils.analytics_events import WORKSPACE_CREATED, WORKSPACE_DELETED
 from plane.utils.csv_utils import sanitize_csv_row
+from plane.utils import bd_visibility as bd_vis
 
 
 class WorkSpaceViewSet(BaseViewSet):
@@ -275,8 +276,12 @@ class UserWorkspaceDashboardEndpoint(BaseAPIView):
 
         month = request.GET.get("month", 1)
 
+        # BD CRM Phase 3: the personal dashboard must not surface leads outside the acting
+        # BD's profile even when assigned to them (strict; no-op for non-restricted users).
+        scoped_issues = bd_vis.scope_workspace_issues(Issue.issue_objects.all(), request.user, slug)
+
         completed_issues = (
-            Issue.issue_objects.filter(
+            scoped_issues.filter(
                 assignees__in=[request.user],
                 workspace__slug=slug,
                 completed_at__month=month,
@@ -289,34 +294,34 @@ class UserWorkspaceDashboardEndpoint(BaseAPIView):
             .order_by("week_in_month")
         )
 
-        assigned_issues = Issue.issue_objects.filter(workspace__slug=slug, assignees__in=[request.user]).count()
+        assigned_issues = scoped_issues.filter(workspace__slug=slug, assignees__in=[request.user]).count()
 
-        pending_issues_count = Issue.issue_objects.filter(
+        pending_issues_count = scoped_issues.filter(
             ~Q(state__group__in=["completed", "cancelled"]),
             workspace__slug=slug,
             assignees__in=[request.user],
         ).count()
 
-        completed_issues_count = Issue.issue_objects.filter(
+        completed_issues_count = scoped_issues.filter(
             workspace__slug=slug, assignees__in=[request.user], state__group="completed"
         ).count()
 
         issues_due_week = (
-            Issue.issue_objects.filter(workspace__slug=slug, assignees__in=[request.user])
+            scoped_issues.filter(workspace__slug=slug, assignees__in=[request.user])
             .annotate(target_week=ExtractWeek("target_date"))
             .filter(target_week=timezone.now().date().isocalendar()[1])
             .count()
         )
 
         state_distribution = (
-            Issue.issue_objects.filter(workspace__slug=slug, assignees__in=[request.user])
+            scoped_issues.filter(workspace__slug=slug, assignees__in=[request.user])
             .annotate(state_group=F("state__group"))
             .values("state_group")
             .annotate(state_count=Count("state_group"))
             .order_by("state_group")
         )
 
-        overdue_issues = Issue.issue_objects.filter(
+        overdue_issues = scoped_issues.filter(
             ~Q(state__group__in=["completed", "cancelled"]),
             workspace__slug=slug,
             assignees__in=[request.user],
@@ -324,7 +329,7 @@ class UserWorkspaceDashboardEndpoint(BaseAPIView):
             completed_at__isnull=True,
         ).values("id", "name", "workspace__slug", "project_id", "target_date")
 
-        upcoming_issues = Issue.issue_objects.filter(
+        upcoming_issues = scoped_issues.filter(
             ~Q(state__group__in=["completed", "cancelled"]),
             start_date__gte=timezone.now(),
             workspace__slug=slug,

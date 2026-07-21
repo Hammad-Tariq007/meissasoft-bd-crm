@@ -22,6 +22,7 @@ from plane.app.serializers import (
 from plane.app.permissions import allow_permission, ROLE
 from plane.utils.global_paginator import paginate
 from plane.utils.timezone_converter import user_timezone_converter
+from plane.utils import bd_visibility as bd_vis
 
 
 class IssueVersionEndpoint(BaseAPIView):
@@ -85,6 +86,10 @@ class WorkItemDescriptionVersionEndpoint(BaseAPIView):
 
     @allow_permission(allowed_roles=[ROLE.ADMIN, ROLE.MEMBER, ROLE.GUEST])
     def get(self, request, slug, project_id, work_item_id, pk=None):
+        # BD CRM Phase 3: description-version history is lead content — hidden leads 404.
+        if not bd_vis.is_issue_visible(request.user, slug, project_id, work_item_id):
+            return Response({"error": "Work item not found"}, status=status.HTTP_404_NOT_FOUND)
+
         project = Project.objects.get(pk=project_id)
         issue = Issue.objects.get(workspace__slug=slug, project_id=project_id, pk=work_item_id)
 

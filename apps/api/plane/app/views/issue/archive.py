@@ -39,6 +39,7 @@ from plane.utils.grouper import (
 )
 from plane.utils.issue_filters import issue_filters
 from plane.utils.order_queryset import order_issue_queryset
+from plane.utils import bd_visibility as bd_vis
 from plane.utils.paginator import GroupedOffsetPaginator, SubGroupedOffsetPaginator
 from plane.app.permissions import allow_permission, ROLE
 from plane.utils.error_codes import ERROR_CODES
@@ -95,11 +96,15 @@ class IssueArchiveViewSet(BaseViewSet):
         )
 
     def get_queryset(self):
-        return (
+        # BD CRM Phase 3: a restricted BD must not see archived leads outside their profile.
+        return bd_vis.scope_project_issues(
             Issue.objects.filter(Q(type__isnull=True) | Q(type__is_epic=False))
             .filter(archived_at__isnull=False)
             .filter(project_id=self.kwargs.get("project_id"))
-            .filter(workspace__slug=self.kwargs.get("slug"))
+            .filter(workspace__slug=self.kwargs.get("slug")),
+            self.request.user,
+            self.kwargs.get("slug"),
+            self.kwargs.get("project_id"),
         )
 
     @method_decorator(gzip_page)

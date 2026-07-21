@@ -26,6 +26,7 @@ from plane.api.views.base import BaseAPIView
 from plane.app.permissions import ROLE
 from plane.db.models import WorkspaceMember
 from plane.utils import bd_insights_core as core
+from plane.utils import bd_visibility as bd_vis
 from plane.utils.date_utils import get_analytics_filters
 
 
@@ -71,6 +72,8 @@ class BDInsightsAPIEndpoint(BaseAPIView):
             project_ids=project_ids,
         )
         queryset = core.scoped_issue_queryset(filters["base_filters"], filters["chart_period_range"])
+        # Defense-in-depth: restricted BDs are already 403'd by the gate above; scope anyway.
+        queryset = bd_vis.scope_workspace_issues(queryset, request.user, slug)
         status_code, payload = core.dispatch_insight(
             request.GET.get("type", None),
             queryset,
@@ -118,6 +121,8 @@ class BDLeadsAPIEndpoint(BaseAPIView):
             project_ids=project_ids,
         )
         queryset = core.scoped_issue_queryset(filters["base_filters"], filters["chart_period_range"])
+        # Defense-in-depth: restricted BDs are already 403'd by the gate above; scope anyway.
+        queryset = bd_vis.scope_workspace_issues(queryset, request.user, slug)
         payload = core.list_leads(
             queryset,
             slug,

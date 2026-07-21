@@ -20,6 +20,7 @@ from rest_framework.response import Response
 from plane.app.permissions import ROLE, allow_permission
 from plane.app.views.analytic.advance import AdvanceAnalyticsBaseView
 from plane.utils import bd_insights_core as core
+from plane.utils import bd_visibility as bd_vis
 
 
 class BDInsightsEndpoint(AdvanceAnalyticsBaseView):
@@ -35,6 +36,9 @@ class BDInsightsEndpoint(AdvanceAnalyticsBaseView):
             )
         self.initialize_workspace(slug, type="chart")
         queryset = core.scoped_issue_queryset(self.filters["base_filters"], self.filters["chart_period_range"])
+        # Defense-in-depth: restricted BDs are already 403'd by the gate above, but scope the
+        # analytics queryset to the acting user's visible leads anyway (no-op for admins).
+        queryset = bd_vis.scope_workspace_issues(queryset, request.user, slug)
         status_code, payload = core.dispatch_insight(
             request.GET.get("type", None),
             queryset,

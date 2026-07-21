@@ -60,6 +60,7 @@ from plane.utils.grouper import (
 )
 from plane.utils.issue_filters import issue_filters
 from plane.utils.order_queryset import order_issue_queryset
+from plane.utils import bd_visibility as bd_vis
 from plane.utils.paginator import GroupedOffsetPaginator, SubGroupedOffsetPaginator
 from plane.utils.filters import ComplexFilterBackend
 from plane.utils.filters import IssueFilterSet
@@ -136,14 +137,22 @@ class WorkspaceUserProfileIssuesEndpoint(BaseAPIView):
         filters = issue_filters(request.query_params, "GET")
 
         order_by_param = request.GET.get("order_by", "-created_at")
-        issue_queryset = Issue.issue_objects.filter(
-            id__in=Issue.issue_objects.filter(
-                Q(assignees__in=[user_id]) | Q(created_by_id=user_id) | Q(issue_subscribers__subscriber_id=user_id),
+        # BD CRM Phase 3: another user's profile-issues list must not surface leads whose
+        # Profile is not assigned to the acting BD (strict: assignee/creator does not override).
+        issue_queryset = bd_vis.scope_workspace_issues(
+            Issue.issue_objects.filter(
+                id__in=Issue.issue_objects.filter(
+                    Q(assignees__in=[user_id])
+                    | Q(created_by_id=user_id)
+                    | Q(issue_subscribers__subscriber_id=user_id),
+                    workspace__slug=slug,
+                ).values_list("id", flat=True),
                 workspace__slug=slug,
-            ).values_list("id", flat=True),
-            workspace__slug=slug,
-            project__project_projectmember__member=request.user,
-            project__project_projectmember__is_active=True,
+                project__project_projectmember__member=request.user,
+                project__project_projectmember__is_active=True,
+            ),
+            request.user,
+            slug,
         )
 
         # Apply filtering from filterset
@@ -397,8 +406,12 @@ class WorkspaceUserProfileStatsEndpoint(BaseAPIView):
     def get(self, request, slug, user_id):
         filters = issue_filters(request.query_params, "GET")
 
+        # BD CRM Phase 3: stats about another user's issues are computed only over leads the
+        # acting BD may see (no-op for non-restricted users; strict, fail-closed).
+        scoped_issues = bd_vis.scope_workspace_issues(Issue.issue_objects.all(), request.user, slug)
+
         state_distribution = (
-            Issue.issue_objects.filter(
+            scoped_issues.filter(
                 (Q(assignees__in=[user_id]) & Q(issue_assignee__deleted_at__isnull=True)),
                 workspace__slug=slug,
                 project__project_projectmember__member=request.user,
@@ -414,7 +427,7 @@ class WorkspaceUserProfileStatsEndpoint(BaseAPIView):
         priority_order = ["urgent", "high", "medium", "low", "none"]
 
         priority_distribution = (
-            Issue.issue_objects.filter(
+            scoped_issues.filter(
                 (Q(assignees__in=[user_id]) & Q(issue_assignee__deleted_at__isnull=True)),
                 workspace__slug=slug,
                 project__project_projectmember__member=request.user,
@@ -435,7 +448,7 @@ class WorkspaceUserProfileStatsEndpoint(BaseAPIView):
         )
 
         created_issues = (
-            Issue.issue_objects.filter(
+            scoped_issues.filter(
                 workspace__slug=slug,
                 project__project_projectmember__member=request.user,
                 project__project_projectmember__is_active=True,
@@ -446,7 +459,7 @@ class WorkspaceUserProfileStatsEndpoint(BaseAPIView):
         )
 
         assigned_issues_count = (
-            Issue.issue_objects.filter(
+            scoped_issues.filter(
                 (Q(assignees__in=[user_id]) & Q(issue_assignee__deleted_at__isnull=True)),
                 workspace__slug=slug,
                 project__project_projectmember__member=request.user,
@@ -457,7 +470,7 @@ class WorkspaceUserProfileStatsEndpoint(BaseAPIView):
         )
 
         pending_issues_count = (
-            Issue.issue_objects.filter(
+            scoped_issues.filter(
                 ~Q(state__group__in=["completed", "cancelled"]),
                 (Q(assignees__in=[user_id]) & Q(issue_assignee__deleted_at__isnull=True)),
                 workspace__slug=slug,
@@ -469,7 +482,7 @@ class WorkspaceUserProfileStatsEndpoint(BaseAPIView):
         )
 
         completed_issues_count = (
-            Issue.issue_objects.filter(
+            scoped_issues.filter(
                 (Q(assignees__in=[user_id]) & Q(issue_assignee__deleted_at__isnull=True)),
                 workspace__slug=slug,
                 state__group="completed",

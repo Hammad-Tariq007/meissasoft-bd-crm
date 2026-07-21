@@ -50,6 +50,7 @@ from plane.app.views.base import BaseAPIView
 from plane.utils.timezone_converter import user_timezone_converter
 from plane.utils.global_paginator import paginate
 from plane.utils.host import base_host
+from plane.utils import bd_visibility as bd_vis
 from plane.db.models.intake import SourceType
 
 
@@ -196,6 +197,12 @@ class IntakeIssueViewSet(BaseViewSet):
                 )
             )
         ).order_by(request.GET.get("order_by", "-issue__created_at"))
+
+        # BD CRM Phase 3: a restricted BD sees only intake rows whose underlying lead has a
+        # Profile assigned to them (no-op for everyone else). Triage leads usually lack a
+        # Profile, so a restricted BD's intake list is fail-closed by default.
+        intake_issue = bd_vis.scope_intake_issues(intake_issue, request.user, slug, project_id)
+
         # Intake status filter
         intake_status = [item for item in request.GET.get("status", "-2").split(",") if item != "null"]
         if intake_status:
@@ -573,6 +580,10 @@ class IntakeWorkItemDescriptionVersionEndpoint(BaseAPIView):
 
     @allow_permission(allowed_roles=[ROLE.ADMIN, ROLE.MEMBER, ROLE.GUEST])
     def get(self, request, slug, project_id, work_item_id, pk=None):
+        # BD CRM Phase 3: description-version history is lead content — hidden leads 404.
+        if not bd_vis.is_issue_visible(request.user, slug, project_id, work_item_id):
+            return Response({"error": "Work item not found"}, status=status.HTTP_404_NOT_FOUND)
+
         project = Project.objects.get(pk=project_id)
         issue = Issue.objects.get(workspace__slug=slug, project_id=project_id, pk=work_item_id)
 
