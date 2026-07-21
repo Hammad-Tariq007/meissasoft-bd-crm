@@ -33,6 +33,7 @@ from plane.utils.grouper import (
     issue_on_results,
     issue_queryset_grouper,
 )
+from plane.utils import bd_visibility as bd_vis
 from plane.utils.issue_filters import issue_filters
 from plane.utils.order_queryset import order_issue_queryset
 from plane.utils.paginator import GroupedOffsetPaginator, SubGroupedOffsetPaginator
@@ -82,14 +83,17 @@ class ModuleIssueViewSet(BaseViewSet):
         )
 
     def get_queryset(self):
-        return (
+        return bd_vis.scope_project_issues(
             Issue.issue_objects.filter(
                 project_id=self.kwargs.get("project_id"),
                 workspace__slug=self.kwargs.get("slug"),
                 issue_module__module_id=self.kwargs.get("module_id"),
                 issue_module__deleted_at__isnull=True,
-            )
-        ).distinct()
+            ).distinct(),
+            self.request.user,
+            self.kwargs.get("slug"),
+            self.kwargs.get("project_id"),
+        )
 
     @method_decorator(gzip_page)
     @allow_permission([ROLE.ADMIN, ROLE.MEMBER])

@@ -186,6 +186,14 @@ class CustomFieldValue(ProjectBaseModel):
                 name="customfieldvalue_unique_field_issue_when_deleted_at_null",
             )
         ]
+        indexes = [
+            # Speeds up the BD per-profile visibility filter (field + option, live rows only).
+            models.Index(
+                fields=["field", "value_option"],
+                condition=Q(deleted_at__isnull=True),
+                name="cfv_field_option_active_idx",
+            ),
+        ]
 
     def __str__(self):
         return f"{self.field.name} = {self.get_value()} <{self.issue_id}>"

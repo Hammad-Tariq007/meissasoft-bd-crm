@@ -83,6 +83,7 @@ from plane.db.models import (
 )
 from plane.settings.storage import S3Storage
 from plane.utils.path_validator import sanitize_filename
+from plane.utils import bd_visibility as bd_vis
 from plane.bgtasks.storage_metadata_task import get_asset_object_metadata
 from .base import BaseAPIView
 from plane.utils.host import base_host
@@ -192,23 +193,28 @@ class WorkspaceIssueAPIEndpoint(BaseAPIView):
         return self.kwargs.get("project_identifier", None)
 
     def get_queryset(self):
-        return (
-            Issue.issue_objects.annotate(
-                sub_issues_count=Issue.issue_objects.filter(parent=OuterRef("id"))
-                .order_by()
-                .annotate(count=Func(F("id"), function="Count"))
-                .values("count")
-            )
-            .filter(workspace__slug=self.kwargs.get("slug"))
-            .filter(project__identifier=self.kwargs.get("project_identifier"))
-            .select_related("project")
-            .select_related("workspace")
-            .select_related("state")
-            .select_related("parent")
-            .prefetch_related("assignees")
-            .prefetch_related("labels")
-            .order_by(self.kwargs.get("order_by", "-created_at"))
-        ).distinct()
+        # BD CRM Phase 3: cross-project scope to the acting BD's visible leads (no-op otherwise).
+        return bd_vis.scope_workspace_issues(
+            (
+                Issue.issue_objects.annotate(
+                    sub_issues_count=Issue.issue_objects.filter(parent=OuterRef("id"))
+                    .order_by()
+                    .annotate(count=Func(F("id"), function="Count"))
+                    .values("count")
+                )
+                .filter(workspace__slug=self.kwargs.get("slug"))
+                .filter(project__identifier=self.kwargs.get("project_identifier"))
+                .select_related("project")
+                .select_related("workspace")
+                .select_related("state")
+                .select_related("parent")
+                .prefetch_related("assignees")
+                .prefetch_related("labels")
+                .order_by(self.kwargs.get("order_by", "-created_at"))
+            ).distinct(),
+            self.request.user,
+            self.kwargs.get("slug"),
+        )
 
     @extend_schema(
         operation_id="get_workspace_work_item",
@@ -264,23 +270,29 @@ class IssueListCreateAPIEndpoint(BaseAPIView):
     use_read_replica = True
 
     def get_queryset(self):
-        return (
-            Issue.issue_objects.annotate(
-                sub_issues_count=Issue.issue_objects.filter(parent=OuterRef("id"))
-                .order_by()
-                .annotate(count=Func(F("id"), function="Count"))
-                .values("count")
-            )
-            .filter(project_id=self.kwargs.get("project_id"))
-            .filter(workspace__slug=self.kwargs.get("slug"))
-            .select_related("project")
-            .select_related("workspace")
-            .select_related("state")
-            .select_related("parent")
-            .prefetch_related("assignees")
-            .prefetch_related("labels")
-            .order_by(self.kwargs.get("order_by", "-created_at"))
-        ).distinct()
+        # BD CRM Phase 3: scope to the acting BD's assigned profiles in this project (no-op otherwise).
+        return bd_vis.scope_project_issues(
+            (
+                Issue.issue_objects.annotate(
+                    sub_issues_count=Issue.issue_objects.filter(parent=OuterRef("id"))
+                    .order_by()
+                    .annotate(count=Func(F("id"), function="Count"))
+                    .values("count")
+                )
+                .filter(project_id=self.kwargs.get("project_id"))
+                .filter(workspace__slug=self.kwargs.get("slug"))
+                .select_related("project")
+                .select_related("workspace")
+                .select_related("state")
+                .select_related("parent")
+                .prefetch_related("assignees")
+                .prefetch_related("labels")
+                .order_by(self.kwargs.get("order_by", "-created_at"))
+            ).distinct(),
+            self.request.user,
+            self.kwargs.get("slug"),
+            self.kwargs.get("project_id"),
+        )
 
     @work_item_docs(
         operation_id="list_work_items",
@@ -520,23 +532,29 @@ class IssueDetailAPIEndpoint(BaseAPIView):
     use_read_replica = True
 
     def get_queryset(self):
-        return (
-            Issue.issue_objects.annotate(
-                sub_issues_count=Issue.issue_objects.filter(parent=OuterRef("id"))
-                .order_by()
-                .annotate(count=Func(F("id"), function="Count"))
-                .values("count")
-            )
-            .filter(project_id=self.kwargs.get("project_id"))
-            .filter(workspace__slug=self.kwargs.get("slug"))
-            .select_related("project")
-            .select_related("workspace")
-            .select_related("state")
-            .select_related("parent")
-            .prefetch_related("assignees")
-            .prefetch_related("labels")
-            .order_by(self.kwargs.get("order_by", "-created_at"))
-        ).distinct()
+        # BD CRM Phase 3: scope to the acting BD's assigned profiles in this project (no-op otherwise).
+        return bd_vis.scope_project_issues(
+            (
+                Issue.issue_objects.annotate(
+                    sub_issues_count=Issue.issue_objects.filter(parent=OuterRef("id"))
+                    .order_by()
+                    .annotate(count=Func(F("id"), function="Count"))
+                    .values("count")
+                )
+                .filter(project_id=self.kwargs.get("project_id"))
+                .filter(workspace__slug=self.kwargs.get("slug"))
+                .select_related("project")
+                .select_related("workspace")
+                .select_related("state")
+                .select_related("parent")
+                .prefetch_related("assignees")
+                .prefetch_related("labels")
+                .order_by(self.kwargs.get("order_by", "-created_at"))
+            ).distinct(),
+            self.request.user,
+            self.kwargs.get("slug"),
+            self.kwargs.get("project_id"),
+        )
 
     def _reassignment_blocked(self, request, slug, project_id, issue):
         """
@@ -588,6 +606,9 @@ class IssueDetailAPIEndpoint(BaseAPIView):
         Retrieve details of a specific work item.
         Supports filtering, ordering, and field selection through query parameters.
         """
+        # BD CRM Phase 3: hidden leads 404 for a restricted BD (no-op otherwise).
+        if not bd_vis.is_issue_visible(request.user, slug, project_id, pk):
+            return Response({"error": "The requested resource could not be found."}, status=status.HTTP_404_NOT_FOUND)
 
         issue = Issue.issue_objects.annotate(
             sub_issues_count=Issue.issue_objects.filter(parent=OuterRef("id"))

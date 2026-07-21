@@ -71,6 +71,7 @@ from plane.utils.grouper import (
 from plane.utils.host import base_host
 from plane.utils.issue_filters import issue_filters
 from plane.utils import bd_insights_core as bd_core
+from plane.utils import bd_visibility as bd_vis
 from plane.utils.order_queryset import order_issue_queryset
 from plane.utils.paginator import GroupedOffsetPaginator, SubGroupedOffsetPaginator
 from plane.utils.timezone_converter import user_timezone_converter
@@ -92,7 +93,12 @@ class IssueListEndpoint(BaseAPIView):
         issue_ids = [issue_id for issue_id in issue_ids.split(",") if issue_id != ""]
 
         # Base queryset with basic filters
-        queryset = Issue.issue_objects.filter(workspace__slug=slug, project_id=project_id, pk__in=issue_ids)
+        queryset = bd_vis.scope_project_issues(
+            Issue.issue_objects.filter(workspace__slug=slug, project_id=project_id, pk__in=issue_ids),
+            request.user,
+            slug,
+            project_id,
+        )
 
         # Apply filtering from filterset
         queryset = self.filter_queryset(queryset)
@@ -209,7 +215,10 @@ class IssueViewSet(BaseViewSet):
             workspace__slug=self.kwargs.get("slug"),
         ).distinct()
 
-        return issues
+        # BD CRM Phase 3: restrict to the acting BD's assigned profiles (no-op otherwise).
+        return bd_vis.scope_project_issues(
+            issues, self.request.user, self.kwargs.get("slug"), self.kwargs.get("project_id")
+        )
 
     def apply_annotations(self, issues):
         issues = (
@@ -492,6 +501,9 @@ class IssueViewSet(BaseViewSet):
 
     @allow_permission(allowed_roles=[ROLE.ADMIN, ROLE.MEMBER, ROLE.GUEST], creator=True, model=Issue)
     def retrieve(self, request, slug, project_id, pk=None):
+        # BD CRM Phase 3: hidden leads 404 for a restricted BD (no-op otherwise).
+        if not bd_vis.is_issue_visible(request.user, slug, project_id, pk):
+            return Response({"error": "The required object does not exist."}, status=status.HTTP_404_NOT_FOUND)
         project = Project.objects.get(pk=project_id, workspace__slug=slug)
 
         issue = (
@@ -834,7 +846,13 @@ class IssuePaginatedViewSet(BaseViewSet):
         workspace_slug = self.kwargs.get("slug")
         project_id = self.kwargs.get("project_id")
 
-        issue_queryset = Issue.issue_objects.filter(workspace__slug=workspace_slug, project_id=project_id)
+        # BD CRM Phase 3: restrict to the acting BD's assigned profiles (no-op otherwise).
+        issue_queryset = bd_vis.scope_project_issues(
+            Issue.issue_objects.filter(workspace__slug=workspace_slug, project_id=project_id),
+            self.request.user,
+            workspace_slug,
+            project_id,
+        )
 
         return (
             issue_queryset.select_related("state")
@@ -917,7 +935,9 @@ class IssuePaginatedViewSet(BaseViewSet):
             required_fields.append("description_html")
 
         # querying issues
-        base_queryset = Issue.issue_objects.filter(workspace__slug=slug, project_id=project_id)
+        base_queryset = bd_vis.scope_project_issues(
+            Issue.issue_objects.filter(workspace__slug=slug, project_id=project_id), request.user, slug, project_id
+        )
 
         base_queryset = base_queryset.order_by("updated_at")
         queryset = self.get_queryset().order_by("updated_at")
@@ -1071,7 +1091,9 @@ class IssueDetailEndpoint(BaseAPIView):
             .values("id")
         )
         # Main issue query
-        issue = Issue.issue_objects.filter(workspace__slug=slug, project_id=project_id).filter(
+        issue = bd_vis.scope_project_issues(
+            Issue.issue_objects.filter(workspace__slug=slug, project_id=project_id), request.user, slug, project_id
+        ).filter(
             Exists(permission_subquery)
         )
 
@@ -1202,6 +1224,8 @@ class IssueBulkUpdateDateEndpoint(BaseAPIView):
 class IssueMetaEndpoint(BaseAPIView):
     @allow_permission([ROLE.ADMIN, ROLE.MEMBER, ROLE.GUEST], level="PROJECT")
     def get(self, request, slug, project_id, issue_id):
+        if not bd_vis.is_issue_visible(request.user, slug, project_id, issue_id):
+            return Response({"error": "The required object does not exist."}, status=status.HTTP_404_NOT_FOUND)
         issue = Issue.issue_objects.only("sequence_id", "project__identifier").get(
             id=issue_id, project_id=project_id, workspace__slug=slug
         )
@@ -1247,7 +1271,9 @@ class IssueDetailIdentifierEndpoint(BaseAPIView):
 
         # Fetch the issue
         issue = (
-            Issue.objects.filter(project_id=project.id)
+            bd_vis.scope_project_issues(
+                Issue.objects.filter(project_id=project.id), request.user, slug, project.id
+            )
             .filter(workspace__slug=slug)
             .select_related("workspace", "project", "state", "parent")
             .prefetch_related("assignees", "labels", "issue_module__module")
