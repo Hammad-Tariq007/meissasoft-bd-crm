@@ -7,7 +7,7 @@ import json
 
 # Django imports
 from django.utils import timezone
-from django.db.models import OuterRef, Func, F, Q, Value, UUIDField, Subquery, Count, IntegerField
+from django.db.models import OuterRef, F, Value, UUIDField, Subquery, Count, IntegerField
 from django.utils.decorators import method_decorator
 from django.views.decorators.gzip import gzip_page
 from django.contrib.postgres.aggregates import ArrayAgg
@@ -213,6 +213,17 @@ class SubIssuesEndpoint(BaseAPIView):
                 {"error": "Sub Issue IDs are required"},
                 status=status.HTTP_400_BAD_REQUEST,
             )
+
+        # BD CRM Phase 3: sub_issue_ids come straight from the request body. Reject the whole
+        # request (fail loud) if the acting user cannot see the parent or ANY supplied lead —
+        # otherwise a restricted BD could reparent and read the full content of out-of-profile
+        # leads. No-op for non-restricted users.
+        for check_id in [issue_id, *sub_issue_ids]:
+            if not bd_vis.is_issue_visible(request.user, slug, project_id, check_id):
+                return Response(
+                    {"error": "You do not have access to one or more of the referenced work items."},
+                    status=status.HTTP_403_FORBIDDEN,
+                )
 
         sub_issues = Issue.issue_objects.filter(id__in=sub_issue_ids)
 

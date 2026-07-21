@@ -99,6 +99,25 @@ ALLOWLIST = {
 # JUSTIFICATION.
 ENTITY_HYDRATION_ALLOWLIST = {}
 
+# Write entrypoints that take CALLER-SUPPLIED issue ids from the request body and return
+# issue content via a serializer — the exact shape that let the sub-issue / relation leaks
+# slip past the read-only scans. Such a method MUST route the supplied ids through a
+# visibility/edit guard (bd_vis.* or can_edit_all_issues / can_bd_edit_lead).
+WRITE_ENTRY_METHODS = {"post", "create", "create_module_issues", "create_issue_modules"}
+# Serializers that expose issue name/description/metadata to the client.
+ISSUE_SERIALIZERS = {
+    "IssueSerializer",
+    "IssueDetailSerializer",
+    "IssueRelationSerializer",
+    "RelatedIssueSerializer",
+}
+# Guard calls (bare Names) that count as "the supplied ids were access-checked" for writes.
+WRITE_GUARD_NAMES = {"can_edit_all_issues", "can_bd_edit_lead", "is_issue_visible"}
+
+# Write paths matching the caller-supplied-ids + issue-serializer shape that are intentionally
+# unguarded (justify each). ADD ONLY WITH JUSTIFICATION.
+CALLER_SUPPLIED_WRITE_ALLOWLIST = {}
+
 
 def _iter_view_files():
     for base in VIEW_DIRS:
@@ -117,10 +136,11 @@ def _build_parent_map(tree):
 
 
 def _is_issue_base(node):
-    """True if ``node`` is ``Issue.objects`` or ``Issue.issue_objects``."""
+    """True if ``node`` is ``Issue.objects`` / ``Issue.issue_objects`` / ``Issue.all_objects``
+    (all_objects includes soft-deleted/archived rows — it was a prior blind spot)."""
     return (
         isinstance(node, ast.Attribute)
-        and node.attr in ("objects", "issue_objects")
+        and node.attr in ("objects", "issue_objects", "all_objects")
         and isinstance(node.value, ast.Name)
         and node.value.id == "Issue"
     )
@@ -338,6 +358,106 @@ def _collect_unscoped_entity_hydration():
     return unscoped
 
 
+def _reads_caller_issue_ids(func_node):
+    """The function reads issue ids from the request body — request.data.get("<...issue...>")
+    or request.data["<...issue...>"]. This is the caller-supplied-ids signal."""
+    for node in ast.walk(func_node):
+        key = None
+        # request.data.get("issues"/"sub_issue_ids"/...)
+        if (
+            isinstance(node, ast.Call)
+            and isinstance(node.func, ast.Attribute)
+            and node.func.attr == "get"
+            and isinstance(node.func.value, ast.Attribute)
+            and node.func.value.attr == "data"
+            and node.args
+            and isinstance(node.args[0], ast.Constant)
+            and isinstance(node.args[0].value, str)
+        ):
+            key = node.args[0].value
+        # request.data["issues"]
+        elif (
+            isinstance(node, ast.Subscript)
+            and isinstance(node.value, ast.Attribute)
+            and node.value.attr == "data"
+            and isinstance(node.slice, ast.Constant)
+            and isinstance(node.slice.value, str)
+        ):
+            key = node.slice.value
+        if key and "issue" in key.lower():
+            return True
+    return False
+
+
+def _within_json_dumps(node, parents):
+    """True if ``node`` is nested inside a ``json.dumps(...)`` call — the standard activity-
+    tracking `current_instance=json.dumps(IssueSerializer(issue).data)` pattern, which is NOT
+    returned to the client and must not count as a response serializer."""
+    cur = parents.get(node)
+    while cur is not None:
+        if (
+            isinstance(cur, ast.Call)
+            and isinstance(cur.func, ast.Attribute)
+            and cur.func.attr == "dumps"
+        ):
+            return True
+        cur = parents.get(cur)
+    return False
+
+
+def _returns_issue_serializer(func_node, parents):
+    """The function instantiates an issue/relation serializer that reaches the CLIENT (exposes
+    name/description/meta). Serializers used only for activity-tracking (inside json.dumps) do
+    not count."""
+    for node in ast.walk(func_node):
+        if (
+            isinstance(node, ast.Call)
+            and isinstance(node.func, ast.Name)
+            and node.func.id in ISSUE_SERIALIZERS
+            and not _within_json_dumps(node, parents)
+        ):
+            return True
+    return False
+
+
+def _references_write_guard(func_node):
+    """True if the function access-checks the supplied ids: a bd_vis.* scope call, or a bare
+    can_edit_all_issues / can_bd_edit_lead / is_issue_visible call."""
+    if _references_scope(func_node):
+        return True
+    for node in ast.walk(func_node):
+        if isinstance(node, ast.Call) and isinstance(node.func, ast.Name) and node.func.id in WRITE_GUARD_NAMES:
+            return True
+    return False
+
+
+def _collect_unguarded_caller_supplied_writes():
+    """Return {key: (path, lineno)} for every WRITE entrypoint that takes caller-supplied issue
+    ids AND returns issue content via a serializer WITHOUT an access guard — the sub-issue /
+    relation leak shape."""
+    unguarded = {}
+    for path in _iter_view_files():
+        try:
+            tree = ast.parse(path.read_text())
+        except SyntaxError as exc:  # pragma: no cover
+            pytest.fail(f"Could not parse {path}: {exc}")
+        parents = _build_parent_map(tree)
+        rel = path.relative_to(API_ROOT).as_posix()
+        for func in ast.walk(tree):
+            if not isinstance(func, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                continue
+            if func.name not in WRITE_ENTRY_METHODS:
+                continue
+            if not (_reads_caller_issue_ids(func) and _returns_issue_serializer(func, parents)):
+                continue
+            if _references_write_guard(func):
+                continue
+            cls_name = _enclosing_class_name(func, parents)
+            qualname = f"{cls_name}.{func.name}" if cls_name else func.name
+            unguarded[f"{rel}::{qualname}"] = (rel, func.lineno)
+    return unguarded
+
+
 @pytest.mark.unit
 class TestBDVisibilityCoverage:
     """Fail CI when a read endpoint returns Issue data without profile scoping."""
@@ -426,5 +546,64 @@ class TestBDVisibilityCoverage:
         )
         assert not stale, (
             "ENTITY_HYDRATION_ALLOWLIST entries no longer match an unscoped read — remove them:\n"
+            + "\n".join(f"  - {k}" for k in stale)
+        )
+
+    def test_sanity_write_scanner_detects_caller_supplied_leak(self, tmp_path):
+        """The write-path scanner must catch the sub-issue / relation leak shape: a post/create
+        that reads issue ids from the body and returns an issue serializer with no guard."""
+        sample = tmp_path / "leaky_write.py"
+        sample.write_text(
+            "from plane.db.models import Issue\n"
+            "from plane.app.serializers import IssueSerializer\n"
+            "class LeakyWrite:\n"
+            "    def post(self, request, slug, project_id, issue_id):\n"
+            "        ids = request.data.get('sub_issue_ids', [])\n"
+            "        qs = Issue.issue_objects.filter(id__in=ids)\n"
+            "        return IssueSerializer(qs, many=True).data\n"
+        )
+        tree = ast.parse(sample.read_text())
+        method = tree.body[2].body[0]
+        assert _reads_caller_issue_ids(method) is True
+        assert _returns_issue_serializer(method, _build_parent_map(tree)) is True
+        assert _references_write_guard(method) is False
+
+    def test_sanity_write_scanner_clears_guarded(self, tmp_path):
+        """A guarded write (is_issue_visible check) must NOT be flagged (false-positive guard)."""
+        sample = tmp_path / "guarded_write.py"
+        sample.write_text(
+            "from plane.db.models import Issue\n"
+            "from plane.app.serializers import IssueSerializer\n"
+            "from plane.utils import bd_visibility as bd_vis\n"
+            "class GuardedWrite:\n"
+            "    def post(self, request, slug, project_id, issue_id):\n"
+            "        ids = request.data.get('sub_issue_ids', [])\n"
+            "        for i in ids:\n"
+            "            if not bd_vis.is_issue_visible(request.user, slug, project_id, i):\n"
+            "                return None\n"
+            "        return IssueSerializer(Issue.issue_objects.filter(id__in=ids), many=True).data\n"
+        )
+        tree = ast.parse(sample.read_text())
+        method = tree.body[3].body[0]
+        assert _reads_caller_issue_ids(method) is True
+        assert _references_write_guard(method) is True
+
+    def test_no_unguarded_caller_supplied_issue_writes(self):
+        """Every write entrypoint that takes caller-supplied issue ids and returns an issue
+        serializer must access-check those ids (bd_vis / can_edit_all_issues / can_bd_edit_lead)
+        — closes the sub-issue / relation leak class that the read-only scans miss."""
+        unguarded = _collect_unguarded_caller_supplied_writes()
+        offenders = sorted(set(unguarded) - set(CALLER_SUPPLIED_WRITE_ALLOWLIST))
+        stale = sorted(set(CALLER_SUPPLIED_WRITE_ALLOWLIST) - set(unguarded))
+
+        assert not offenders, (
+            "Write endpoint(s) accept caller-supplied issue ids and return issue content with "
+            "no visibility/edit guard — validate every supplied id via bd_vis.is_issue_visible "
+            "(or can_edit_all_issues / can_bd_edit_lead), or add to CALLER_SUPPLIED_WRITE_ALLOWLIST "
+            "with a reason:\n"
+            + "\n".join(f"  - {k} ({unguarded[k][0]}:{unguarded[k][1]})" for k in offenders)
+        )
+        assert not stale, (
+            "CALLER_SUPPLIED_WRITE_ALLOWLIST entries no longer match an unguarded write — remove them:\n"
             + "\n".join(f"  - {k}" for k in stale)
         )

@@ -831,8 +831,15 @@ class DeletedIssuesListViewSet(BaseAPIView):
         filters = {}
         if request.GET.get("updated_at__gt", None) is not None:
             filters = {"updated_at__gt": request.GET.get("updated_at__gt")}
+        # BD CRM Phase 3: a restricted BD should only sync deletions for leads in their profile
+        # scope (no-op for non-restricted users). Prevents deleted-lead id enumeration.
         deleted_issues = (
-            Issue.all_objects.filter(workspace__slug=slug, project_id=project_id)
+            bd_vis.scope_project_issues(
+                Issue.all_objects.filter(workspace__slug=slug, project_id=project_id),
+                request.user,
+                slug,
+                project_id,
+            )
             .filter(Q(archived_at__isnull=False) | Q(deleted_at__isnull=False))
             .filter(**filters)
             .values_list("id", flat=True)

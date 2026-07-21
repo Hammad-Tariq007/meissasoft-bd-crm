@@ -216,6 +216,17 @@ class IssueRelationViewSet(BaseViewSet):
             )
 
         issues = request.data.get("issues", [])
+
+        # BD CRM Phase 3: the related-issue ids come straight from the request body and their
+        # name/metadata is returned via the serializer. Reject (fail loud) if the acting user
+        # cannot see the parent or ANY supplied related lead. No-op for non-restricted users.
+        for check_id in [issue_id, *issues]:
+            if not bd_vis.is_issue_visible(request.user, slug, project_id, check_id):
+                return Response(
+                    {"error": "You do not have access to one or more of the referenced work items."},
+                    status=status.HTTP_403_FORBIDDEN,
+                )
+
         project = Project.objects.get(pk=project_id)
 
         issue_relation = IssueRelation.objects.bulk_create(
