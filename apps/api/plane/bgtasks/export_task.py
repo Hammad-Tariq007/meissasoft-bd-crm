@@ -20,6 +20,7 @@ from django.db.models import Prefetch
 
 # Module imports
 from plane.db.models import ExporterHistory, Issue, IssueComment, IssueRelation, IssueSubscriber
+from plane.utils import bd_visibility as bd_vis
 from plane.utils.exception_logger import log_exception
 from plane.utils.porters.exporter import DataExporter
 from plane.utils.porters.serializers.issue import IssueExportSerializer
@@ -187,6 +188,13 @@ def issue_export_task(
                     queryset=Issue.objects.select_related("type", "project"),
                 ),
             )
+        )
+
+        # BD CRM Phase 3: scope the export to what the initiating user may see. A restricted
+        # BD can only export leads whose Profile is assigned to them (per project); no-op for
+        # everyone else. Threads the acting user via exporter_instance.initiated_by.
+        workspace_issues = bd_vis.scope_workspace_issues(
+            workspace_issues, exporter_instance.initiated_by, slug
         )
 
         # Create exporter for the specified format

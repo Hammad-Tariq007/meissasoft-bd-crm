@@ -28,6 +28,7 @@ from rest_framework.response import Response
 
 # Module imports
 from plane.app.views.base import BaseAPIView
+from plane.utils import bd_visibility as bd_vis
 from plane.db.models import (
     Workspace,
     Project,
@@ -99,6 +100,9 @@ class GlobalSearchEndpoint(BaseAPIView):
             project__archived_at__isnull=True,
             workspace__slug=slug,
         )
+
+        # BD CRM Phase 3: global (command-k) search must not surface a hidden lead by name.
+        issues = bd_vis.scope_workspace_issues(issues, self.request.user, slug)
 
         if workspace_search == "false" and project_id:
             issues = issues.filter(project_id=project_id)
@@ -394,15 +398,21 @@ class SearchEndpoint(BaseAPIView):
                             else:
                                 q |= Q(**{f"{field}__icontains": query})
 
-                    issues = (
+                    # BD CRM Phase 3: mention/command-k search must not surface hidden leads.
+                    issues = bd_vis.scope_project_issues(
                         Issue.issue_objects.filter(
                             q,
                             project__project_projectmember__member=self.request.user,
                             project__project_projectmember__is_active=True,
                             workspace__slug=slug,
                             project_id=project_id,
-                        )
-                        .order_by("-created_at")
+                        ),
+                        self.request.user,
+                        slug,
+                        project_id,
+                    )
+                    issues = (
+                        issues.order_by("-created_at")
                         .distinct()
                         .values(
                             "name",
@@ -599,14 +609,19 @@ class SearchEndpoint(BaseAPIView):
                             else:
                                 q |= Q(**{f"{field}__icontains": query})
 
-                    issues = (
+                    # BD CRM Phase 3: workspace-wide search must not surface hidden leads.
+                    issues = bd_vis.scope_workspace_issues(
                         Issue.issue_objects.filter(
                             q,
                             project__project_projectmember__member=self.request.user,
                             project__project_projectmember__is_active=True,
                             workspace__slug=slug,
-                        )
-                        .order_by("-created_at")
+                        ),
+                        self.request.user,
+                        slug,
+                    )
+                    issues = (
+                        issues.order_by("-created_at")
                         .distinct()
                         .values(
                             "name",

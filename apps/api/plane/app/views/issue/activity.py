@@ -19,6 +19,7 @@ from .. import BaseAPIView
 from plane.app.serializers import IssueActivitySerializer, IssueCommentSerializer
 from plane.app.permissions import ProjectEntityPermission, allow_permission, ROLE
 from plane.db.models import IssueActivity, IssueComment, CommentReaction, IntakeIssue
+from plane.utils import bd_visibility as bd_vis
 
 
 class IssueActivityEndpoint(BaseAPIView):
@@ -28,6 +29,11 @@ class IssueActivityEndpoint(BaseAPIView):
     @method_decorator(gzip_page)
     @allow_permission([ROLE.ADMIN, ROLE.MEMBER, ROLE.GUEST])
     def get(self, request, slug, project_id, issue_id):
+        # BD CRM Phase 3: a restricted BD must not read the activity/comment feed of a lead
+        # whose Profile is not assigned to them (would leak title/content). 404, not 403.
+        if not bd_vis.is_issue_visible(request.user, slug, project_id, issue_id):
+            return Response({"error": "Work item not found"}, status=status.HTTP_404_NOT_FOUND)
+
         filters = {}
         if request.GET.get("created_at__gt", None) is not None:
             filters = {"created_at__gt": request.GET.get("created_at__gt")}

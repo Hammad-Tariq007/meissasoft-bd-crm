@@ -23,6 +23,7 @@ from plane.db.models import (
     WorkspaceMember,
 )
 from plane.utils.paginator import BasePaginator
+from plane.utils import bd_visibility as bd_vis
 from plane.app.permissions import allow_permission, ROLE
 
 # Module imports
@@ -75,6 +76,10 @@ class NotificationViewSet(BaseViewSet, BasePaginator):
             .select_related("workspace", "project", "triggered_by", "receiver")
             .order_by("snoozed_till", "-created_at")
         )
+
+        # BD CRM Phase 3: a restricted BD must not receive notifications (mentions,
+        # subscriptions, activity) for leads whose Profile is not assigned to them.
+        notifications = bd_vis.filter_issue_notifications(notifications, request.user, slug)
 
         # Filters based on query parameters
         snoozed_filters = {

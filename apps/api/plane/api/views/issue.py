@@ -2318,6 +2318,9 @@ class IssueSearchEndpoint(BaseAPIView):
             workspace__slug=slug,
         )
 
+        # BD CRM Phase 3: public search must not surface a hidden lead by name.
+        issues = bd_vis.scope_workspace_issues(issues, self.request.user, slug)
+
         # Apply project filter if not searching across workspace
         if workspace_search == "false" and project_id:
             issues = issues.filter(project_id=project_id)

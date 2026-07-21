@@ -56,6 +56,7 @@ from plane.utils.analytics_plot import burndown_plot
 from plane.bgtasks.recent_visited_task import recent_visited_task
 from plane.utils.host import base_host
 from plane.utils.cycle_transfer_issues import transfer_cycle_issues
+from plane.utils import bd_visibility as bd_vis
 from .. import BaseAPIView, BaseViewSet
 from plane.bgtasks.webhook_task import model_activity
 from plane.utils.timezone_converter import convert_to_utc, user_timezone_converter
@@ -661,8 +662,11 @@ class CycleProgressEndpoint(BaseAPIView):
         cycle = Cycle.objects.filter(workspace__slug=slug, project_id=project_id, id=cycle_id).first()
         if not cycle:
             return Response({"error": "Cycle not found"}, status=status.HTTP_404_NOT_FOUND)
+        # BD CRM Phase 3: cycle progress is aggregated only over leads the acting BD may see
+        # (no-op for non-restricted users; strict, fail-closed).
+        scoped_issues = bd_vis.scope_project_issues(Issue.issue_objects.all(), request.user, slug, project_id)
         aggregate_estimates = (
-            Issue.issue_objects.filter(
+            scoped_issues.filter(
                 estimate_point__estimate__type="points",
                 issue_cycle__cycle_id=cycle_id,
                 issue_cycle__deleted_at__isnull=True,
@@ -717,7 +721,7 @@ class CycleProgressEndpoint(BaseAPIView):
             completed_issues = cycle.progress_snapshot.get("completed_issues", 0)
             total_issues = cycle.progress_snapshot.get("total_issues", 0)
         else:
-            backlog_issues = Issue.issue_objects.filter(
+            backlog_issues = scoped_issues.filter(
                 issue_cycle__cycle_id=cycle_id,
                 issue_cycle__deleted_at__isnull=True,
                 workspace__slug=slug,
@@ -725,7 +729,7 @@ class CycleProgressEndpoint(BaseAPIView):
                 state__group="backlog",
             ).count()
 
-            unstarted_issues = Issue.issue_objects.filter(
+            unstarted_issues = scoped_issues.filter(
                 issue_cycle__cycle_id=cycle_id,
                 issue_cycle__deleted_at__isnull=True,
                 workspace__slug=slug,
@@ -733,7 +737,7 @@ class CycleProgressEndpoint(BaseAPIView):
                 state__group="unstarted",
             ).count()
 
-            started_issues = Issue.issue_objects.filter(
+            started_issues = scoped_issues.filter(
                 issue_cycle__cycle_id=cycle_id,
                 issue_cycle__deleted_at__isnull=True,
                 workspace__slug=slug,
@@ -741,7 +745,7 @@ class CycleProgressEndpoint(BaseAPIView):
                 state__group="started",
             ).count()
 
-            cancelled_issues = Issue.issue_objects.filter(
+            cancelled_issues = scoped_issues.filter(
                 issue_cycle__cycle_id=cycle_id,
                 issue_cycle__deleted_at__isnull=True,
                 workspace__slug=slug,
@@ -749,7 +753,7 @@ class CycleProgressEndpoint(BaseAPIView):
                 state__group="cancelled",
             ).count()
 
-            completed_issues = Issue.issue_objects.filter(
+            completed_issues = scoped_issues.filter(
                 issue_cycle__cycle_id=cycle_id,
                 issue_cycle__deleted_at__isnull=True,
                 workspace__slug=slug,
@@ -757,7 +761,7 @@ class CycleProgressEndpoint(BaseAPIView):
                 state__group="completed",
             ).count()
 
-            total_issues = Issue.issue_objects.filter(
+            total_issues = scoped_issues.filter(
                 issue_cycle__cycle_id=cycle_id,
                 issue_cycle__deleted_at__isnull=True,
                 workspace__slug=slug,

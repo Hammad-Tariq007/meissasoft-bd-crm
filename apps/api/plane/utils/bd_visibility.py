@@ -76,6 +76,32 @@ def scope_workspace_issues(queryset, user, workspace_slug):
     return queryset.filter(combined)
 
 
+def filter_issue_notifications(notification_qs, user, workspace_slug):
+    """Drop issue notifications that point to a lead the acting user may not see. Keeps
+    non-issue notifications and (for non-restricted users) everything. Strict: involvement
+    does not override the profile rule."""
+    if not bd_core.is_restricted_bd(user, workspace_slug):
+        return notification_qs
+    from plane.db.models import Issue
+
+    visible = scope_workspace_issues(Issue.objects.filter(workspace__slug=workspace_slug), user, workspace_slug)
+    # entity_name == "issue" rows must reference a visible lead; other entities pass through.
+    return notification_qs.filter(~Q(entity_name="issue") | Q(entity_identifier__in=visible.values("id")))
+
+
+def scope_intake_issues(intake_qs, user, workspace_slug, project_id):
+    """Restrict an IntakeIssue queryset to intake rows whose underlying lead is visible.
+    No-op for non-restricted users. (Triage leads usually lack a Profile, so a restricted
+    BD sees only intake leads whose Profile is assigned to them.)"""
+    q = restricted_issue_q(user, workspace_slug, project_id)
+    if q is None:
+        return intake_qs
+    from plane.db.models import Issue
+
+    visible = Issue.objects.filter(q, project_id=project_id)
+    return intake_qs.filter(issue_id__in=visible.values("id"))
+
+
 def is_issue_visible(user, workspace_slug, project_id, issue_id) -> bool:
     """Whether a specific lead is visible to the acting user — for detail/deep-link paths
     that should 404 (not 403) when hidden. No-op True for non-restricted users."""
