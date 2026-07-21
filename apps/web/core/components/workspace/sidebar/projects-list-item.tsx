@@ -34,8 +34,9 @@ import { PublishProjectModal } from "@/components/project/publish-project/modal"
 // hooks
 import { useAppTheme } from "@/hooks/store/use-app-theme";
 import { useCommandPalette } from "@/hooks/store/use-command-palette";
+import { useMember } from "@/hooks/store/use-member";
 import { useProject } from "@/hooks/store/use-project";
-import { useUserPermissions } from "@/hooks/store/user";
+import { useUser, useUserPermissions } from "@/hooks/store/user";
 import { useProjectNavigationPreferences } from "@/hooks/use-navigation-preferences";
 import { usePlatformOS } from "@/hooks/use-platform-os";
 // plane web imports
@@ -130,6 +131,18 @@ export const SidebarProjectsListItem = observer(function SidebarProjectsListItem
     workspaceSlug.toString(),
     project?.id
   );
+  // BD CRM: project Settings nav is for project admins, workspace admins, or team leads.
+  const isWorkspaceAdmin = allowPermissions(
+    [EUserPermissions.ADMIN],
+    EUserPermissionsLevel.WORKSPACE,
+    workspaceSlug.toString()
+  );
+  const { data: currentUser } = useUser();
+  const {
+    workspace: { getWorkspaceMemberDetails },
+  } = useMember();
+  const isTeamLead = !!currentUser?.id && !!getWorkspaceMemberDetails(currentUser.id)?.is_team_lead;
+  const canViewProjectSettings = isAdmin || isWorkspaceAdmin || isTeamLead;
 
   const handleLeaveProject = () => {
     setLeaveProjectModal(true);
@@ -421,16 +434,18 @@ export const SidebarProjectsListItem = observer(function SidebarProjectsListItem
                       </div>
                     </CustomMenu.MenuItem>
                   )}
-                  <CustomMenu.MenuItem
-                    onClick={() => {
-                      router.push(`/${workspaceSlug}/settings/projects/${project?.id}`);
-                    }}
-                  >
-                    <div className="flex cursor-pointer items-center justify-start gap-2">
-                      <Settings className="h-3.5 w-3.5 stroke-[1.5]" />
-                      <span>{t("settings")}</span>
-                    </div>
-                  </CustomMenu.MenuItem>
+                  {canViewProjectSettings && (
+                    <CustomMenu.MenuItem
+                      onClick={() => {
+                        router.push(`/${workspaceSlug}/settings/projects/${project?.id}`);
+                      }}
+                    >
+                      <div className="flex cursor-pointer items-center justify-start gap-2">
+                        <Settings className="h-3.5 w-3.5 stroke-[1.5]" />
+                        <span>{t("settings")}</span>
+                      </div>
+                    </CustomMenu.MenuItem>
+                  )}
                   {/* leave project */}
                   {!isAuthorized && (
                     <CustomMenu.MenuItem
