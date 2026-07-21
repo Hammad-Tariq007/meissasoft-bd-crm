@@ -15,6 +15,9 @@ import { useTranslation } from "@plane/i18n";
 import { CheckIcon } from "@plane/propel/icons";
 import type { IWorkspace } from "@plane/types";
 import { cn, getFileURL, getUserRole } from "@plane/utils";
+// hooks
+import { useMember } from "@/hooks/store/use-member";
+import { useUser } from "@/hooks/store/user";
 // plane web imports
 import { SubscriptionPill } from "@/plane-web/components/common/subscription/subscription-pill";
 
@@ -31,6 +34,13 @@ const SidebarDropdownItem = observer(function SidebarDropdownItem(props: TProps)
   const { workspaceSlug } = useParams();
   // hooks
   const { t } = useTranslation();
+  const { data: currentUser } = useUser();
+  const {
+    workspace: { getWorkspaceMemberDetails },
+  } = useMember();
+  // BD CRM: workspace Settings nav is for workspace admins OR team leads (BD/Dev). The
+  // settings links below only render for the active workspace, so this reflects it.
+  const isTeamLead = !!currentUser?.id && !!getWorkspaceMemberDetails(currentUser.id)?.is_team_lead;
 
   return (
     <Link
@@ -91,7 +101,7 @@ const SidebarDropdownItem = observer(function SidebarDropdownItem(props: TProps)
         {workspace.id === activeWorkspace?.id && (
           <>
             <div className="mt-2 mb-1 flex gap-2">
-              {[EUserPermissions.ADMIN, EUserPermissions.MEMBER].includes(workspace?.role) && (
+              {(workspace?.role === EUserPermissions.ADMIN || isTeamLead) && (
                 <Link
                   href={`/${workspace.slug}/settings`}
                   onClick={(e) => {
