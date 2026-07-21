@@ -8,7 +8,7 @@ from rest_framework.permissions import SAFE_METHODS, BasePermission
 # Module import
 from plane.db.models import ProjectMember, WorkspaceMember
 from plane.db.models.project import ROLE
-from .base import is_project_admin, is_issue_assignee
+from .base import is_project_admin, is_issue_assignee, can_bd_edit_lead
 
 
 class ProjectBasePermission(BasePermission):
@@ -183,4 +183,6 @@ class ProjectIssueEditPermission(BasePermission):
         if issue_id is None:
             return True
 
-        return is_issue_assignee(request.user, issue_id)
+        return is_issue_assignee(request.user, issue_id) or can_bd_edit_lead(
+            request.user, slug, project_id, issue_id
+        )

@@ -65,7 +65,7 @@ from plane.app.permissions import (
     ProjectMemberPermission,
     ProjectIssueEditPermission,
 )
-from plane.app.permissions import is_project_admin, is_issue_assignee
+from plane.app.permissions import is_project_admin, is_issue_assignee, can_bd_edit_lead
 from plane.bgtasks.issue_activities_task import issue_activity
 from plane.db.models import (
     Issue,
@@ -674,6 +674,7 @@ class IssueDetailAPIEndpoint(BaseAPIView):
                 if not (
                     is_project_admin(request.user, slug, project_id)
                     or is_issue_assignee(request.user, issue.id)
+                    or can_bd_edit_lead(request.user, slug, project_id, issue.id)
                 ):
                     return Response(
                         {"error": "You don't have permission to edit this work item."},
@@ -896,6 +897,7 @@ class IssueDetailAPIEndpoint(BaseAPIView):
         if not (
             is_project_admin(request.user, slug, project_id)
             or is_issue_assignee(request.user, issue.id)
+            or can_bd_edit_lead(request.user, slug, project_id, issue.id)
         ):
             return Response(
                 {"error": "Only an admin or the assignee can delete the work item"},

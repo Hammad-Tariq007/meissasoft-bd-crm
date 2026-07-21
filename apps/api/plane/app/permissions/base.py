@@ -45,11 +45,38 @@ def is_issue_assignee(user, issue_id):
     ).exists()
 
 
+def can_bd_edit_lead(user, slug, project_id, issue_id):
+    """BD-CRM edit ownership, layered ON TOP of the normal admin/assignee gate.
+
+    - A BD *team lead* (team=bd, is_team_lead) may edit ANY lead in the workspace, mirroring
+      their unrestricted Phase-3 read visibility.
+    - A *restricted* BD may edit a lead whose Profile is assigned to them, mirroring their
+      Phase-3 read visibility (is_issue_visible is the exact profile-scope check, fail-closed).
+
+    Returns False for everyone else (non-BD members, admins, owners), so the caller's existing
+    admin/assignee rules are left completely unchanged — this only ever ADDS access. Lazy
+    imports avoid an import cycle between the permissions and plane.utils layers.
+    """
+    if not issue_id:
+        return False
+    from plane.utils import bd_insights_core as bd_core
+    from plane.utils import bd_visibility as bd_vis
+
+    if not bd_core.is_bd(user, slug):
+        return False
+    if bd_core.is_team_lead(user, slug):
+        return True  # BD lead: edit any lead in the workspace.
+    if bd_core.is_restricted_bd(user, slug):
+        return bd_vis.is_issue_visible(user, slug, project_id, issue_id)
+    return False
+
+
 def can_edit_all_issues(user, slug, project_id, issue_ids):
     """
     True if the user may edit every work item in issue_ids — i.e. they are a
-    project admin, or the assignee of each one. Used by list-body endpoints
-    (cycle/module assignment) that the per-request assignee decorator can't cover.
+    project admin, or the assignee of each one (or, per BD-CRM, a BD lead / the
+    profile-owning restricted BD of each). Used by list-body endpoints (cycle/module
+    assignment) that the per-request assignee decorator can't cover.
     """
     if is_project_admin(user, slug, project_id):
         return True
@@ -61,7 +88,9 @@ def can_edit_all_issues(user, slug, project_id, issue_ids):
             issue_id__in=issue_ids, assignee=user, deleted_at__isnull=True
         ).values_list("issue_id", flat=True)
     )
-    return all(str(i) in assigned for i in issue_ids)
+    return all(
+        str(i) in assigned or can_bd_edit_lead(user, slug, project_id, i) for i in issue_ids
+    )
 
 
 def allow_permission(allowed_roles, level="PROJECT", creator=False, model=None, assignee=False):
@@ -98,7 +127,10 @@ def allow_permission(allowed_roles, level="PROJECT", creator=False, model=None, 
                         workspace__slug=kwargs["slug"],
                         is_active=True,
                     ).exists()
-                    and is_issue_assignee(request.user, issue_id)
+                    and (
+                        is_issue_assignee(request.user, issue_id)
+                        or can_bd_edit_lead(request.user, kwargs["slug"], kwargs.get("project_id"), issue_id)
+                    )
                 ):
                     return view_func(instance, request, *args, **kwargs)
 
