@@ -1,20 +1,30 @@
-# BD CRM Phase 3 — per-profile lead VISIBILITY (project-scoped).
+# BD CRM — TEAM-AWARE lead VISIBILITY (the one place the read rule lives).
 #
-# THE ONE PLACE the visibility rule lives. Every path that returns Issue (lead) data to a
-# user must route its queryset through here. A restricted BD (team="bd", not owner/admin/
-# BD-lead) sees ONLY leads whose Profile custom-field value is one of the profiles assigned
-# to them IN THAT PROJECT. Everyone else (owner / workspace-or-project admin / BD lead /
-# non-BD) is unaffected — the helpers are a no-op for them.
+# Every path that returns Issue (lead) data to a user routes its queryset through here. The
+# restriction depends on the member's team (WorkspaceMember.team), classified by
+# _restriction_kind():
+#   - BD member (not an overseer)   -> sees ONLY leads whose Profile value is one of the
+#                                      profiles assigned to them IN THAT PROJECT (project-scoped).
+#   - Dev member (not an overseer)  -> sees ONLY leads they are an issue ASSIGNEE of
+#                                      (assignee is issue-level, so naturally cross-project).
+#   - Unassigned member (no team)   -> sees NOTHING (fail-closed).
+#   - Overseer (workspace owner / workspace admin / ANY team lead) or non-member
+#                                    -> unrestricted, the helpers are a no-op.
 #
-# Fail-closed: a restricted BD for whom the Profile field can't be resolved, or who has no
-# assignments in the project, sees NOTHING (never everything). No caching — visibility is
-# derived live from current assignments + the lead's Profile value, so reassignment reflects
-# on the next request and a newly-granted profile immediately exposes its full history.
+# EDIT / profile-write logic does NOT route through here — it keeps using bd_core.is_restricted_bd
+# (BD-specific), unchanged.
+#
+# Fail-closed everywhere: a restricted member whose scope can't be resolved sees NOTHING (never
+# everything). No caching — visibility is derived live from current assignments (profile options
+# or IssueAssignee rows), so a reassignment reflects on the very next request.
 
 from django.db.models import Exists, OuterRef, Q
 
 from plane.db.models.bd_team import ProfileAssignment
 from plane.db.models.custom_field import CustomFieldValue
+from plane.db.models.issue import IssueAssignee
+from plane.db.models.project import ROLE
+from plane.db.models.workspace import Workspace, WorkspaceMember, WorkspaceTeam
 from plane.utils import bd_insights_core as bd_core
 
 # Sentinel meaning "match no rows" — used for fail-closed.
@@ -33,11 +43,61 @@ def _profile_match_q(profile_field_id, assigned_option_ids):
     return Q(Exists(sub))
 
 
-def restricted_issue_q(user, workspace_slug, project_id):
-    """The Q a restricted BD's visible issues must satisfy for one project, or None if the
-    user is NOT restricted (caller must not filter). Fail-closed for restricted BDs."""
-    if not bd_core.is_restricted_bd(user, workspace_slug):
+def _assignee_match_q(user):
+    """A Q matching issues the user is an ACTIVE assignee of (via EXISTS — no join/duplicates,
+    so no .distinct() needed). Drives the Dev team's assignee-based visibility, mirroring
+    _profile_match_q. Assignee is issue-level, so this is naturally cross-project."""
+    sub = IssueAssignee.objects.filter(
+        issue_id=OuterRef("pk"),
+        assignee=user,
+        deleted_at__isnull=True,
+    )
+    return Q(Exists(sub))
+
+
+# Read-restriction kinds returned by _restriction_kind(). None => unrestricted.
+_KIND_BD = "bd"  # BD team, not an overseer -> profile-scoped
+_KIND_DEV = "dev"  # Dev team, not an overseer -> assignee-scoped
+_KIND_UNASSIGNED = "unassigned"  # active member, no team -> sees NOTHING (Option B, fail-closed)
+
+
+def _is_overseer(user, workspace_slug):
+    """Sees every lead regardless of team scope: the workspace owner, a workspace admin, or
+    ANY team lead (BD or Dev). Mirrors the exemptions baked into bd_core.is_restricted_bd."""
+    if Workspace.objects.filter(slug=workspace_slug, owner=user).exists():
+        return True
+    if bd_core.is_team_lead(user, workspace_slug):
+        return True
+    return WorkspaceMember.objects.filter(
+        workspace__slug=workspace_slug, member=user, is_active=True, role=ROLE.ADMIN.value
+    ).exists()
+
+
+def _restriction_kind(user, workspace_slug):
+    """Classify the acting user's read restriction in this workspace:
+      None             -> unrestricted (overseer, OR not an active member -> gated elsewhere)
+      _KIND_BD         -> BD member, not an overseer -> profile-scoped
+      _KIND_DEV        -> Dev member, not an overseer -> assignee-scoped
+      _KIND_UNASSIGNED -> active member with no team -> sees nothing (fail-closed).
+    Edit/profile-write logic is intentionally NOT routed through here — it keeps using the
+    BD-specific bd_core.is_restricted_bd, unchanged."""
+    if not WorkspaceMember.objects.filter(
+        workspace__slug=workspace_slug, member=user, is_active=True
+    ).exists():
+        return None  # not an active member -> caller must not filter (handled by permission gates)
+    if _is_overseer(user, workspace_slug):
         return None
+    team = bd_core.member_team(user, workspace_slug)
+    if team == WorkspaceTeam.BD:
+        return _KIND_BD
+    if team == WorkspaceTeam.DEV:
+        return _KIND_DEV
+    return _KIND_UNASSIGNED
+
+
+def _profile_q(user, workspace_slug, project_id):
+    """The profile-scoped Q for a BD member in one project (fail-closed). Extracted unchanged
+    from the original restricted_issue_q body."""
     field_id = bd_core.resolve_profile_field_id(workspace_slug, project_id)
     if field_id is None:
         return _NONE_Q  # Profile field unresolved (e.g. renamed) -> see nothing.
@@ -45,6 +105,20 @@ def restricted_issue_q(user, workspace_slug, project_id):
     if not assigned:
         return _NONE_Q  # No assignments in this project -> see nothing.
     return _profile_match_q(field_id, assigned)
+
+
+def restricted_issue_q(user, workspace_slug, project_id):
+    """The Q the acting user's visible issues must satisfy for one project, or None if the user
+    is NOT restricted (caller must not filter). Team-aware, fail-closed:
+      overseer/non-member -> None; BD -> profile Q; Dev -> assignee Q; unassigned -> nothing."""
+    kind = _restriction_kind(user, workspace_slug)
+    if kind is None:
+        return None
+    if kind == _KIND_BD:
+        return _profile_q(user, workspace_slug, project_id)
+    if kind == _KIND_DEV:
+        return _assignee_match_q(user)
+    return _NONE_Q  # _KIND_UNASSIGNED -> see nothing (Option B)
 
 
 def scope_project_issues(queryset, user, workspace_slug, project_id):
@@ -55,11 +129,19 @@ def scope_project_issues(queryset, user, workspace_slug, project_id):
 
 
 def scope_workspace_issues(queryset, user, workspace_slug):
-    """Restrict a CROSS-PROJECT issue queryset. A restricted BD sees only leads in projects
-    where they hold a matching profile assignment; every other project is excluded. No-op
-    for non-restricted users."""
-    if not bd_core.is_restricted_bd(user, workspace_slug):
+    """Restrict a CROSS-PROJECT issue queryset to what the acting user may see. No-op for
+    overseers / non-members. Team-aware:
+      Dev  -> only leads they are assigned to (assignee is issue-level -> one cross-project filter);
+      unassigned -> nothing;
+      BD   -> only leads in projects where they hold a matching profile assignment (per-project OR)."""
+    kind = _restriction_kind(user, workspace_slug)
+    if kind is None:
         return queryset
+    if kind == _KIND_DEV:
+        return queryset.filter(_assignee_match_q(user))
+    if kind == _KIND_UNASSIGNED:
+        return queryset.none()
+    # _KIND_BD: per-project profile OR over the member's ProfileAssignment projects.
     project_ids = set(
         ProfileAssignment.objects.filter(
             bd_member__workspace__slug=workspace_slug,
@@ -72,7 +154,7 @@ def scope_workspace_issues(queryset, user, workspace_slug):
     combined = Q()
     for project_id in project_ids:
         # Per-project: correct Profile field + assigned set (fail-closed per project).
-        combined |= Q(project_id=project_id) & restricted_issue_q(user, workspace_slug, project_id)
+        combined |= Q(project_id=project_id) & _profile_q(user, workspace_slug, project_id)
     return queryset.filter(combined)
 
 
@@ -82,12 +164,12 @@ def filter_issue_entity_rows(queryset, user, workspace_slug, entity_field="entit
     a lead they may not see. Rows for the issue kind (`entity_field == issue_value`) are kept
     only when `entity_identifier` is a currently-visible lead; every other kind passes through.
 
-    No-op for non-restricted users (owners, admins, BD *leads* — whose Phase-3 visibility is
-    unrestricted — and non-BD members). Strict: involvement does not override the profile rule.
+    No-op for unrestricted users (owners, admins, team leads, non-members). Team-aware via
+    scope_workspace_issues: BD -> profile-visible, Dev -> assignee-visible, unassigned -> none.
 
     `entity_field` names the kind column: "entity_name" (notifications, recent visits) or
     "entity_type" (favorites)."""
-    if not bd_core.is_restricted_bd(user, workspace_slug):
+    if _restriction_kind(user, workspace_slug) is None:
         return queryset
     from plane.db.models import Issue
 
