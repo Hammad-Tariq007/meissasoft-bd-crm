@@ -144,6 +144,12 @@ def is_team_lead(user, workspace_slug: str, team=None) -> bool:
     return qs.exists()
 
 
+def is_dev_lead(user, workspace_slug: str) -> bool:
+    """True if the member is a Dev-team lead in this workspace (team=dev, is_team_lead).
+    Dev leads own dev-assignment: they may set the 'Assigned Dev' field on any lead."""
+    return is_team_lead(user, workspace_slug, team=WorkspaceTeam.DEV)
+
+
 # --- BD CRM profile-assignment layer (Phase 2). ---
 
 # The Profile field is identified by NAME (consistent with bd_insights / analytics).
