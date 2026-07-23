@@ -17,6 +17,7 @@ import { SidebarQuickActions } from "@/components/workspace/sidebar/quick-action
 import { SidebarMenuItems } from "@/components/workspace/sidebar/sidebar-menu-items";
 // hooks
 import { useFavorite } from "@/hooks/store/use-favorite";
+import { useProject } from "@/hooks/store/use-project";
 import { useUserPermissions } from "@/hooks/store/user";
 // plane web components
 import { SidebarTeamsList } from "@/plane-web/components/workspace/sidebar/teams-sidebar-list";
@@ -25,6 +26,7 @@ export const AppSidebar = observer(function AppSidebar() {
   // store hooks
   const { allowPermissions } = useUserPermissions();
   const { groupedFavorites } = useFavorite();
+  const { joinedProjectIds } = useProject();
 
   // derived values
   const canPerformWorkspaceMemberActions = allowPermissions(
@@ -33,6 +35,11 @@ export const AppSidebar = observer(function AppSidebar() {
   );
 
   const isFavoriteEmpty = isEmpty(groupedFavorites);
+  // Only show the presence "Active" list to members who actually belong to a project. A
+  // brand-new workspace member with no project sits at the workspace root, where the widget
+  // (active-members-list.tsx) would otherwise fall back to the FULL workspace roster — gate it
+  // on project membership so a no-project member never sees the whole member list via presence.
+  const hasJoinedProject = joinedProjectIds.length > 0;
 
   return (
     <SidebarWrapper title="Projects" quickActions={<SidebarQuickActions />}>
@@ -43,8 +50,8 @@ export const AppSidebar = observer(function AppSidebar() {
       <SidebarTeamsList />
       {/* Projects List */}
       <SidebarProjectsList />
-      {/* Active members (live presence) */}
-      <SidebarActiveMembers />
+      {/* Active members (live presence) — only for members with project context */}
+      {hasJoinedProject && <SidebarActiveMembers />}
     </SidebarWrapper>
   );
 });
