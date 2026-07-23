@@ -247,6 +247,9 @@ DESIRED_FIELDS = [
     ("Boosted Proposal?", "checkbox", None),
     ("Boost Connects Bid", "number", None),
     ("Upwork Job Link", "url", None),
+    # MEMBER field: the Dev-team member assigned to a lead. Drives Dev read-visibility
+    # (bd_visibility keys on its value_member). Independent of the native "BD"/Assignee.
+    ("Assigned Dev", "member", None),
 ]
 
 
