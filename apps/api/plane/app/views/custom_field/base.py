@@ -257,12 +257,11 @@ class CustomFieldValueViewSet(BaseViewSet):
         if field.is_required and is_empty:
             return Response({"error": f"'{field.name}' is required."}, status=status.HTTP_400_BAD_REQUEST)
 
-        # BD CRM Phase 2: a restricted BD may only set the Profile field to a profile
-        # assigned to them, and must not leave it empty. This is the SOLE custom-field
-        # write path (the public /api/v1 API has none), so it covers create AND edit,
-        # UI AND API. Fail closed — if the Profile field can't be resolved by name, deny
-        # (a rename must block loudly, never silently fall open). NOTE: any future
-        # public-API custom-field write MUST call this same guard.
+        # BD CRM: Profile write rules for a restricted BD. This is the SOLE custom-field write
+        # path (the public /api/v1 API has none), so it covers create AND edit, UI AND API.
+        # Fail closed — if the Profile field can't be resolved by name, deny (a rename must
+        # block loudly, never silently fall open). NOTE: any future public-API custom-field
+        # write MUST call this same guard.
         if bd_core.is_restricted_bd(request.user, slug):
             profile_field_id = bd_core.resolve_profile_field_id(slug, project_id)
             if profile_field_id is None:
@@ -271,6 +270,17 @@ class CustomFieldValueViewSet(BaseViewSet):
                     status=status.HTTP_403_FORBIDDEN,
                 )
             if str(field.id) == str(profile_field_id):
+                # CREATE vs EDIT — non-fragile signal: a Profile value row already existing for
+                # this issue means the lead already has a Profile, so this is an EDIT. A
+                # restricted BD may set Profile ONLY at creation (no row yet); editing the
+                # Profile of an existing lead is admin-only, regardless of target profile.
+                profile_already_set = CustomFieldValue.objects.filter(field=field, issue=issue).exists()
+                if profile_already_set:
+                    return Response(
+                        {"error": "Only an admin can change the Profile of an existing lead."},
+                        status=status.HTTP_403_FORBIDDEN,
+                    )
+                # CREATE (Phase 2, unchanged): must be a profile assigned to them, not empty.
                 if is_empty:
                     return Response(
                         {"error": "As a BD you must set a Profile assigned to you."},
