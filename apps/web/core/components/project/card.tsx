@@ -65,6 +65,9 @@ export const ProjectCard = observer(function ProjectCard(props: Props) {
   const isMemberOfProject = !!project.member_role;
   const hasAdminRole = project.member_role === EUserPermissions.ADMIN;
   const hasMemberRole = project.member_role === EUserPermissions.MEMBER;
+  // BD CRM: project membership is admin-added only — only workspace admins may self-join
+  // (mirrors the backend gate). Regular members get no "Join" affordance.
+  const canJoinProject = allowPermissions([EUserPermissions.ADMIN], EUserPermissionsLevel.WORKSPACE);
   // archive
   const isArchived = !!project.archived_at;
   // local storage
@@ -135,7 +138,7 @@ export const ProjectCard = observer(function ProjectCard(props: Props) {
       action: () => setJoinProjectModal(true),
       title: "Join",
       icon: UserPlus,
-      shouldRender: !isMemberOfProject && !isArchived,
+      shouldRender: !isMemberOfProject && !isArchived && canJoinProject,
     },
     {
       key: "open-new-tab",
@@ -201,7 +204,7 @@ export const ProjectCard = observer(function ProjectCard(props: Props) {
           if (!isMemberOfProject || isArchived) {
             e.preventDefault();
             e.stopPropagation();
-            if (!isArchived) setJoinProjectModal(true);
+            if (!isArchived && canJoinProject) setJoinProjectModal(true);
           }
         }}
         data-prevent-progress={!isMemberOfProject || isArchived}
@@ -351,7 +354,7 @@ export const ProjectCard = observer(function ProjectCard(props: Props) {
                       Joined
                     </span>
                   ))}
-                {!isMemberOfProject && (
+                {!isMemberOfProject && canJoinProject && (
                   <div className="flex items-center">
                     <Button
                       variant="link"

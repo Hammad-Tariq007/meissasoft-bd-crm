@@ -125,7 +125,11 @@ class UserProjectInvitationsViewset(BaseViewSet):
             .select_related("workspace", "workspace__owner", "project")
         )
 
-    @allow_permission([ROLE.ADMIN, ROLE.MEMBER], level="WORKSPACE")
+    # BD CRM: project membership is admin-added only — no self-enrollment. Previously any
+    # workspace MEMBER could self-join a public (network=2) project via this endpoint; gated to
+    # workspace admins so members can only be added by an admin (ProjectMemberViewSet.create,
+    # also ADMIN-only) or via an admin's invite. Admins may still self-join.
+    @allow_permission([ROLE.ADMIN], level="WORKSPACE")
     def create(self, request, slug):
         project_ids = request.data.get("project_ids", [])
 
