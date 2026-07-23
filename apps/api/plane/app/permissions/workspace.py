@@ -7,6 +7,7 @@ from rest_framework.permissions import BasePermission, SAFE_METHODS
 
 # Module imports
 from plane.db.models import WorkspaceMember
+from plane.license.models import Instance, InstanceAdmin
 
 
 # Permission Mappings
@@ -18,12 +19,17 @@ Guest = 5
 # TODO: Move the below logic to python match - python v3.10
 class WorkSpaceBasePermission(BasePermission):
     def has_permission(self, request, view):
-        # allow anyone to create a workspace
         if request.user.is_anonymous:
             return False
 
+        # BD CRM: single-tenant instance — only an instance admin (god-mode / top-of-hierarchy)
+        # may provision new workspaces. Previously ANY authenticated user could create one,
+        # letting arbitrary sign-ups spin up their own workspace. Mirrors InstanceAdminPermission.
         if request.method == "POST":
-            return True
+            instance = Instance.objects.first()
+            return InstanceAdmin.objects.filter(
+                instance=instance, user=request.user, role__gte=Member
+            ).exists()
 
         ## Safe Methods
         if request.method in SAFE_METHODS:
