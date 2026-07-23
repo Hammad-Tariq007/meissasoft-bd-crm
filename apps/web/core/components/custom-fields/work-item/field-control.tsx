@@ -26,6 +26,8 @@ import { renderFormattedPayloadDate } from "@plane/utils";
 // components
 import { DateDropdown } from "@/components/dropdowns/date";
 import { MemberDropdown } from "@/components/dropdowns/member/dropdown";
+// hooks
+import { useMember } from "@/hooks/store/use-member";
 // services
 import { WorkspaceService } from "@/services/workspace.service";
 // types
@@ -35,6 +37,9 @@ const workspaceService = new WorkspaceService();
 
 // Name of the BD "Profile" field — restricted BDs only see the profiles assigned to them.
 const PROFILE_FIELD_NAME = "Profile";
+// Name of the "Assigned Dev" MEMBER field — its dropdown lists ONLY Dev-team members
+// (the backend independently gates who may WRITE it; this only narrows the picker).
+const ASSIGNED_DEV_FIELD_NAME = "Assigned Dev";
 
 export const CUSTOM_FIELD_ICONS: Record<TCustomFieldType, React.FC<{ className?: string }>> = {
   text: Type,
@@ -138,6 +143,17 @@ export const CustomFieldValueControl = observer(function CustomFieldValueControl
   const { projectId, field, valueObject, disabled, onSet, onClear } = props;
   const value = valueObject?.value ?? null;
   const { workspaceSlug } = useParams();
+  const {
+    workspace: { workspaceMemberIds, getWorkspaceMemberDetails },
+  } = useMember();
+
+  // The "Assigned Dev" MEMBER field is assignable to Dev-team members only, so restrict its
+  // picker to workspace members whose team === "dev". (undefined => MemberDropdown falls back
+  // to its normal project roster, used by every other member field.)
+  const isAssignedDevField = field.name === ASSIGNED_DEV_FIELD_NAME;
+  const devMemberIds = isAssignedDevField
+    ? (workspaceMemberIds ?? []).filter((id) => getWorkspaceMemberDetails(id)?.team === "dev")
+    : undefined;
 
   // For the "Profile" field, a restricted BD may only choose profiles assigned to them.
   // The backend is the real guard; this just narrows the dropdown. Fetched once per slug.
@@ -191,6 +207,7 @@ export const CustomFieldValueControl = observer(function CustomFieldValueControl
           onChange={(val) => (val ? onSet(val) : onClear())}
           disabled={disabled}
           projectId={projectId}
+          memberIds={devMemberIds}
           multiple={false}
           placeholder={field.is_required ? "Required" : "Empty"}
           buttonVariant="transparent-with-text"

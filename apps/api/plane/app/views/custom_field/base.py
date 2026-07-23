@@ -12,7 +12,13 @@ from rest_framework.response import Response
 
 # Module imports
 from .. import BaseAPIView, BaseViewSet
-from plane.app.permissions import ROLE, allow_permission
+from plane.app.permissions import (
+    ROLE,
+    allow_permission,
+    can_bd_edit_lead,
+    is_issue_assignee,
+    is_project_admin,
+)
 from plane.app.serializers import (
     CustomFieldDefinitionSerializer,
     CustomFieldOptionSerializer,
@@ -238,7 +244,7 @@ class CustomFieldValueViewSet(BaseViewSet):
             status=status.HTTP_200_OK,
         )
 
-    @allow_permission([ROLE.ADMIN], assignee=True)
+    @allow_permission([ROLE.ADMIN], assignee=True, dev_lead=True)
     def create(self, request, slug, project_id, issue_id):
         """Upsert a single field's value on this work item (one row per field+issue)."""
         field_id = request.data.get("field")
@@ -248,6 +254,21 @@ class CustomFieldValueViewSet(BaseViewSet):
         field = CustomFieldDefinition.objects.get(pk=field_id, project_id=project_id, workspace__slug=slug)
         issue = Issue.objects.get(pk=issue_id, project_id=project_id, workspace__slug=slug)
         value = request.data.get("value", None)
+
+        # BD CRM: the decorator's dev_lead grant lets a Dev-team lead reach this view, but it is
+        # meant ONLY for the "Assigned Dev" (MEMBER) field — dev-assignment ownership. Field-scope
+        # it here: for any OTHER field, a caller must satisfy the ordinary write gate (admin /
+        # the lead's assignee / a BD who may edit this lead). A Dev lead with none of those is
+        # denied on non-Assigned-Dev fields, so this only ever ADDS access to that one field.
+        if field.name != bd_core.ASSIGNED_DEV_FIELD_NAME and not (
+            is_project_admin(request.user, slug, project_id)
+            or is_issue_assignee(request.user, issue_id)
+            or can_bd_edit_lead(request.user, slug, project_id, issue_id)
+        ):
+            return Response(
+                {"error": "You don't have the required permissions."},
+                status=status.HTTP_403_FORBIDDEN,
+            )
 
         field_type = field.field_type
         is_multi = field_type == CustomFieldType.MULTI_SELECT

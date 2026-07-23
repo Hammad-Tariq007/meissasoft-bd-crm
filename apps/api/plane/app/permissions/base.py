@@ -93,7 +93,7 @@ def can_edit_all_issues(user, slug, project_id, issue_ids):
     )
 
 
-def allow_permission(allowed_roles, level="PROJECT", creator=False, model=None, assignee=False):
+def allow_permission(allowed_roles, level="PROJECT", creator=False, model=None, assignee=False, dev_lead=False):
     def decorator(view_func):
         @wraps(view_func)
         def _wrapped_view(instance, request, *args, **kwargs):
@@ -132,6 +132,16 @@ def allow_permission(allowed_roles, level="PROJECT", creator=False, model=None, 
                         or can_bd_edit_lead(request.user, kwargs["slug"], kwargs.get("project_id"), issue_id)
                     )
                 ):
+                    return view_func(instance, request, *args, **kwargs)
+
+            # BD CRM: admit a Dev-team lead (they own dev-assignment). The caller sets
+            # dev_lead=True ONLY on the custom-field write path, and that view further
+            # field-scopes this grant to the "Assigned Dev" field alone — a Dev lead reaching
+            # any view via this route may not touch anything else. Lazy import avoids a cycle.
+            if dev_lead:
+                from plane.utils import bd_insights_core as bd_core
+
+                if bd_core.is_dev_lead(request.user, kwargs["slug"]):
                     return view_func(instance, request, *args, **kwargs)
 
             # Convert allowed_roles to their values if they are enum members
