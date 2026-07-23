@@ -5,8 +5,10 @@
 # _restriction_kind():
 #   - BD member (not an overseer)   -> sees ONLY leads whose Profile value is one of the
 #                                      profiles assigned to them IN THAT PROJECT (project-scoped).
-#   - Dev member (not an overseer)  -> sees ONLY leads they are an issue ASSIGNEE of
-#                                      (assignee is issue-level, so naturally cross-project).
+#   - Dev member (not an overseer)  -> sees ONLY leads where they are the "Assigned Dev"
+#                                      (MEMBER custom field; matched by name -> cross-project).
+#                                      NOTE: keyed on the dedicated "Assigned Dev" field, NOT
+#                                      the native "BD"/Assignee (IssueAssignee), which is untouched.
 #   - Unassigned member (no team)   -> sees NOTHING (fail-closed).
 #   - Overseer (workspace owner / workspace admin / ANY team lead) or non-member
 #                                    -> unrestricted, the helpers are a no-op.
@@ -16,13 +18,12 @@
 #
 # Fail-closed everywhere: a restricted member whose scope can't be resolved sees NOTHING (never
 # everything). No caching — visibility is derived live from current assignments (profile options
-# or IssueAssignee rows), so a reassignment reflects on the very next request.
+# or Assigned-Dev field values), so a reassignment reflects on the very next request.
 
 from django.db.models import Exists, OuterRef, Q
 
 from plane.db.models.bd_team import ProfileAssignment
 from plane.db.models.custom_field import CustomFieldValue
-from plane.db.models.issue import IssueAssignee
 from plane.db.models.project import ROLE
 from plane.db.models.workspace import Workspace, WorkspaceMember, WorkspaceTeam
 from plane.utils import bd_insights_core as bd_core
@@ -43,13 +44,16 @@ def _profile_match_q(profile_field_id, assigned_option_ids):
     return Q(Exists(sub))
 
 
-def _assignee_match_q(user):
-    """A Q matching issues the user is an ACTIVE assignee of (via EXISTS — no join/duplicates,
-    so no .distinct() needed). Drives the Dev team's assignee-based visibility, mirroring
-    _profile_match_q. Assignee is issue-level, so this is naturally cross-project."""
-    sub = IssueAssignee.objects.filter(
+def _assigned_dev_match_q(user):
+    """A Q matching leads where the user is the 'Assigned Dev' — the MEMBER custom field whose
+    value_member points at a Dev — via EXISTS (no join/duplicates). Drives the Dev team's
+    read-visibility. Matched by field NAME, so it is naturally cross-project AND fail-closed:
+    if the field is renamed/absent, nothing matches (a Dev sees NOTHING), never everything.
+    Deliberately independent of the native "BD"/Assignee (IssueAssignee), which is untouched."""
+    sub = CustomFieldValue.objects.filter(
         issue_id=OuterRef("pk"),
-        assignee=user,
+        field__name=bd_core.ASSIGNED_DEV_FIELD_NAME,
+        value_member=user,
         deleted_at__isnull=True,
     )
     return Q(Exists(sub))
@@ -57,7 +61,7 @@ def _assignee_match_q(user):
 
 # Read-restriction kinds returned by _restriction_kind(). None => unrestricted.
 _KIND_BD = "bd"  # BD team, not an overseer -> profile-scoped
-_KIND_DEV = "dev"  # Dev team, not an overseer -> assignee-scoped
+_KIND_DEV = "dev"  # Dev team, not an overseer -> Assigned-Dev-scoped
 _KIND_UNASSIGNED = "unassigned"  # active member, no team -> sees NOTHING (Option B, fail-closed)
 
 
@@ -77,7 +81,7 @@ def _restriction_kind(user, workspace_slug):
     """Classify the acting user's read restriction in this workspace:
       None             -> unrestricted (overseer, OR not an active member -> gated elsewhere)
       _KIND_BD         -> BD member, not an overseer -> profile-scoped
-      _KIND_DEV        -> Dev member, not an overseer -> assignee-scoped
+      _KIND_DEV        -> Dev member, not an overseer -> Assigned-Dev-scoped
       _KIND_UNASSIGNED -> active member with no team -> sees nothing (fail-closed).
     Edit/profile-write logic is intentionally NOT routed through here — it keeps using the
     BD-specific bd_core.is_restricted_bd, unchanged."""
@@ -110,14 +114,14 @@ def _profile_q(user, workspace_slug, project_id):
 def restricted_issue_q(user, workspace_slug, project_id):
     """The Q the acting user's visible issues must satisfy for one project, or None if the user
     is NOT restricted (caller must not filter). Team-aware, fail-closed:
-      overseer/non-member -> None; BD -> profile Q; Dev -> assignee Q; unassigned -> nothing."""
+      overseer/non-member -> None; BD -> profile Q; Dev -> Assigned-Dev Q; unassigned -> nothing."""
     kind = _restriction_kind(user, workspace_slug)
     if kind is None:
         return None
     if kind == _KIND_BD:
         return _profile_q(user, workspace_slug, project_id)
     if kind == _KIND_DEV:
-        return _assignee_match_q(user)
+        return _assigned_dev_match_q(user)
     return _NONE_Q  # _KIND_UNASSIGNED -> see nothing (Option B)
 
 
@@ -131,14 +135,14 @@ def scope_project_issues(queryset, user, workspace_slug, project_id):
 def scope_workspace_issues(queryset, user, workspace_slug):
     """Restrict a CROSS-PROJECT issue queryset to what the acting user may see. No-op for
     overseers / non-members. Team-aware:
-      Dev  -> only leads they are assigned to (assignee is issue-level -> one cross-project filter);
+      Dev  -> only leads where they are the Assigned Dev (matched by field name -> one cross-project filter);
       unassigned -> nothing;
       BD   -> only leads in projects where they hold a matching profile assignment (per-project OR)."""
     kind = _restriction_kind(user, workspace_slug)
     if kind is None:
         return queryset
     if kind == _KIND_DEV:
-        return queryset.filter(_assignee_match_q(user))
+        return queryset.filter(_assigned_dev_match_q(user))
     if kind == _KIND_UNASSIGNED:
         return queryset.none()
     # _KIND_BD: per-project profile OR over the member's ProfileAssignment projects.
@@ -165,7 +169,7 @@ def filter_issue_entity_rows(queryset, user, workspace_slug, entity_field="entit
     only when `entity_identifier` is a currently-visible lead; every other kind passes through.
 
     No-op for unrestricted users (owners, admins, team leads, non-members). Team-aware via
-    scope_workspace_issues: BD -> profile-visible, Dev -> assignee-visible, unassigned -> none.
+    scope_workspace_issues: BD -> profile-visible, Dev -> Assigned-Dev-visible, unassigned -> none.
 
     `entity_field` names the kind column: "entity_name" (notifications, recent visits) or
     "entity_type" (favorites)."""

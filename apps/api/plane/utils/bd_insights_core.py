@@ -167,6 +167,25 @@ def resolve_profile_field_id(workspace_slug: str, project_id):
     )
 
 
+# The MEMBER-type field that assigns a Dev-team member to a lead. Drives Dev read-visibility
+# (bd_visibility) and is settable by admins / the owning BD / a Dev team-lead. Resolved by NAME
+# (the ONE place the name lives), fail-closed like the Profile field: a rename surfaces as a
+# loud block (Dev sees nothing), never a silent fall-open.
+ASSIGNED_DEV_FIELD_NAME = "Assigned Dev"
+
+
+def resolve_assigned_dev_field_id(workspace_slug: str, project_id):
+    """Resolve the MEMBER 'Assigned Dev' field id for a project by NAME, or None if it cannot
+    be found. Callers MUST fail closed (a Dev sees nothing) when None."""
+    return (
+        CustomFieldDefinition.objects.filter(
+            workspace__slug=workspace_slug, project_id=project_id, name=ASSIGNED_DEV_FIELD_NAME
+        )
+        .values_list("id", flat=True)
+        .first()
+    )
+
+
 def is_restricted_bd(user, workspace_slug: str) -> bool:
     """A regular BD subject to the profile restriction: on the BD team AND NOT the
     workspace owner, a workspace admin, or a team lead (those oversee everything)."""
