@@ -26,9 +26,23 @@ export abstract class APIService {
     this.axiosInstance.interceptors.response.use(
       (response) => response,
       (error) => {
-        if (error.response && error.response.status === 401) {
+        const status = error.response?.status;
+        if (status === 401) {
           const currentPath = window.location.pathname;
           window.location.replace(`/${currentPath ? `?next_path=${currentPath}` : ``}`);
+        } else if (status === 403) {
+          // Access revoked mid-session: a WRITE on a Settings page came back forbidden (the
+          // backend re-checks the role per request). The stale page may still show an admin UI,
+          // so leave it — reload to the workspace home, which refetches the current member-info
+          // and applies the demoted role. Scoped to Settings writes so that ordinary 403s
+          // elsewhere (e.g. BD lead-visibility, analytics gate) never cause a redirect.
+          const method = (error.config?.method ?? "").toLowerCase();
+          const path = window.location.pathname;
+          const isWrite = !!method && method !== "get";
+          if (isWrite && path.includes("/settings")) {
+            const slug = path.split("/").find(Boolean);
+            window.location.replace(slug ? `/${slug}` : "/");
+          }
         }
         return Promise.reject(error);
       }
