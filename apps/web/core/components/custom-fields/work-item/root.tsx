@@ -7,6 +7,7 @@
 import { useMemo } from "react";
 import { observer } from "mobx-react";
 import useSWR from "swr";
+import { EUserPermissions, EUserPermissionsLevel } from "@plane/constants";
 import { TOAST_TYPE, setToast } from "@plane/propel/toast";
 // components
 import { SidebarPropertyListItem } from "@/components/common/layout/sidebar/property-list-item";
@@ -14,8 +15,13 @@ import { SidebarPropertyListItem } from "@/components/common/layout/sidebar/prop
 import { ISSUE_CUSTOM_FIELD_VALUES } from "@/constants/fetch-keys";
 // hooks
 import { useCustomField } from "@/hooks/store/use-custom-field";
+import { useMember } from "@/hooks/store/use-member";
+import { useUser, useUserPermissions } from "@/hooks/store/user";
 // local imports
 import { CUSTOM_FIELD_ICONS, CustomFieldValueControl } from "./field-control";
+
+// The BD access-control field is resolved by name on the backend too (PROFILE_FIELD_NAME).
+const PROFILE_FIELD_NAME = "Profile";
 
 type Props = {
   workspaceSlug: string;
@@ -39,6 +45,17 @@ export const WorkItemCustomFieldProperties = observer(function WorkItemCustomFie
     setCustomFieldValue,
     clearCustomFieldValue,
   } = useCustomField();
+  const { data: currentUser } = useUser();
+  const {
+    workspace: { getWorkspaceMemberDetails },
+  } = useMember();
+  const { allowPermissions } = useUserPermissions();
+
+  // BD CRM: a restricted BD may set Profile only at CREATE. On an EXISTING lead (this panel)
+  // Profile is admin-only, so render it read-only for them (backend enforces the same).
+  const memberDetails = currentUser?.id ? getWorkspaceMemberDetails(currentUser.id) : undefined;
+  const isWorkspaceAdmin = allowPermissions([EUserPermissions.ADMIN], EUserPermissionsLevel.WORKSPACE);
+  const isRestrictedBD = memberDetails?.team === "bd" && !memberDetails?.is_team_lead && !isWorkspaceAdmin;
 
   // values for this work item (definitions are loaded at the project-wrapper level)
   useSWR(
@@ -83,7 +100,7 @@ export const WorkItemCustomFieldProperties = observer(function WorkItemCustomFie
             issueId={issueId}
             field={field}
             valueObject={getCustomFieldValue(issueId, field.id)}
-            disabled={!isEditable}
+            disabled={!isEditable || (isRestrictedBD && field.name === PROFILE_FIELD_NAME)}
             onSet={(v) => handleSet(field.id, v)}
             onClear={() => handleClear(field.id)}
           />
