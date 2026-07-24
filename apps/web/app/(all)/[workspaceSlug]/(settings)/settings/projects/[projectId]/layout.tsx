@@ -4,12 +4,18 @@
  * See the LICENSE file for details.
  */
 
+import { useEffect } from "react";
 import { observer } from "mobx-react";
 import { usePathname } from "next/navigation";
 import { Outlet } from "react-router";
+// plane imports
+import { EUserPermissions, EUserPermissionsLevel } from "@plane/constants";
 // components
 import { getProjectActivePath } from "@/components/settings/helper";
 import { SettingsMobileNav } from "@/components/settings/mobile/nav";
+// hooks
+import { useAppRouter } from "@/hooks/use-app-router";
+import { useUserPermissions } from "@/hooks/store/user";
 // layouts
 import { ProjectAuthWrapper } from "@/layouts/auth-layout/project-wrapper";
 // types
@@ -20,6 +26,31 @@ function ProjectDetailSettingsLayout({ params }: Route.ComponentProps) {
   const { workspaceSlug, projectId } = params;
   // router
   const pathname = usePathname();
+  const router = useAppRouter();
+  // store hooks
+  const { allowPermissions, getProjectRoleByWorkspaceSlugAndProjectId } = useUserPermissions();
+
+  // BD CRM: project Settings is admin-only — a workspace admin/owner OR a project admin of THIS
+  // project. Everyone else (team leads and regular members who are not a project admin here) is
+  // hard-redirected off, matching the workspace-settings guard's strictness.
+  const isWorkspaceAdmin = allowPermissions([EUserPermissions.ADMIN], EUserPermissionsLevel.WORKSPACE, workspaceSlug);
+  const isProjectAdmin = allowPermissions(
+    [EUserPermissions.ADMIN],
+    EUserPermissionsLevel.PROJECT,
+    workspaceSlug,
+    projectId
+  );
+  const canAccess = isWorkspaceAdmin || isProjectAdmin;
+  const projectRole = getProjectRoleByWorkspaceSlugAndProjectId(workspaceSlug, projectId);
+  // Decide only once the user's standing is known (a ws-admin is known immediately; otherwise wait
+  // for the project role to load) so a project admin is never bounced mid-load.
+  const denied = (isWorkspaceAdmin || projectRole !== undefined) && !canAccess;
+
+  useEffect(() => {
+    if (denied) router.replace(`/${workspaceSlug}/`);
+  }, [denied, workspaceSlug, router]);
+
+  if (denied) return null;
 
   return (
     <>
