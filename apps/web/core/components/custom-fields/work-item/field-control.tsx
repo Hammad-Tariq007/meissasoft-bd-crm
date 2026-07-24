@@ -144,15 +144,18 @@ export const CustomFieldValueControl = observer(function CustomFieldValueControl
   const value = valueObject?.value ?? null;
   const { workspaceSlug } = useParams();
   const {
-    workspace: { workspaceMemberIds, getWorkspaceMemberDetails },
+    workspace: { workspaceMemberIds, getWorkspaceMemberDetails, isUserSuspended },
   } = useMember();
 
-  // The "Assigned Dev" MEMBER field is assignable to Dev-team members only, so restrict its
-  // picker to workspace members whose team === "dev". (undefined => MemberDropdown falls back
-  // to its normal project roster, used by every other member field.)
+  // The "Assigned Dev" MEMBER field is assignable to active Dev-team members only, so restrict
+  // its picker to workspace members whose team === "dev" and who are not suspended (inactive).
+  // (undefined => MemberDropdown falls back to its normal project roster, used by every other
+  // member field.)
   const isAssignedDevField = field.name === ASSIGNED_DEV_FIELD_NAME;
   const devMemberIds = isAssignedDevField
-    ? (workspaceMemberIds ?? []).filter((id) => getWorkspaceMemberDetails(id)?.team === "dev")
+    ? (workspaceMemberIds ?? []).filter(
+        (id) => getWorkspaceMemberDetails(id)?.team === "dev" && !isUserSuspended(id, workspaceSlug?.toString())
+      )
     : undefined;
 
   // For the "Profile" field, a restricted BD may only choose profiles assigned to them.
