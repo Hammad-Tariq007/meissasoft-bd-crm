@@ -34,9 +34,8 @@ import { PublishProjectModal } from "@/components/project/publish-project/modal"
 // hooks
 import { useAppTheme } from "@/hooks/store/use-app-theme";
 import { useCommandPalette } from "@/hooks/store/use-command-palette";
-import { useMember } from "@/hooks/store/use-member";
 import { useProject } from "@/hooks/store/use-project";
-import { useUser, useUserPermissions } from "@/hooks/store/user";
+import { useUserPermissions } from "@/hooks/store/user";
 import { useProjectNavigationPreferences } from "@/hooks/use-navigation-preferences";
 import { usePlatformOS } from "@/hooks/use-platform-os";
 // plane web imports
@@ -131,18 +130,15 @@ export const SidebarProjectsListItem = observer(function SidebarProjectsListItem
     workspaceSlug.toString(),
     project?.id
   );
-  // BD CRM: project Settings nav is for project admins, workspace admins, or team leads.
+  // BD CRM: the project Settings gear is admin-only — a project admin of this project OR a
+  // workspace admin. Matches the project-settings redirect guard; team leads are no longer shown
+  // the gear (they'd be redirected off the page anyway).
   const isWorkspaceAdmin = allowPermissions(
     [EUserPermissions.ADMIN],
     EUserPermissionsLevel.WORKSPACE,
     workspaceSlug.toString()
   );
-  const { data: currentUser } = useUser();
-  const {
-    workspace: { getWorkspaceMemberDetails },
-  } = useMember();
-  const isTeamLead = !!currentUser?.id && !!getWorkspaceMemberDetails(currentUser.id)?.is_team_lead;
-  const canViewProjectSettings = isAdmin || isWorkspaceAdmin || isTeamLead;
+  const canViewProjectSettings = isAdmin || isWorkspaceAdmin;
 
   const handleLeaveProject = () => {
     setLeaveProjectModal(true);
