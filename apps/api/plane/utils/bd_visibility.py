@@ -12,6 +12,10 @@
 #   - Unassigned member (no team)   -> sees NOTHING (fail-closed).
 #   - Overseer (workspace owner / workspace admin / ANY team lead) or non-member
 #                                    -> unrestricted, the helpers are a no-op.
+#   - Project ADMIN (of a given project) -> a PROJECT-SCOPED overseer: sees EVERY lead in the
+#                                      project(s) they administer, regardless of team scope, while
+#                                      staying team-scoped in projects they don't administer (so
+#                                      no cross-project leak). Layered on top of the team rule.
 #
 # EDIT / profile-write logic does NOT route through here — it keeps using bd_core.is_restricted_bd
 # (BD-specific), unchanged.
@@ -24,7 +28,7 @@ from django.db.models import Exists, OuterRef, Q
 
 from plane.db.models.bd_team import ProfileAssignment
 from plane.db.models.custom_field import CustomFieldValue
-from plane.db.models.project import ROLE
+from plane.db.models.project import ProjectMember, ROLE
 from plane.db.models.workspace import Workspace, WorkspaceMember, WorkspaceTeam
 from plane.utils import bd_insights_core as bd_core
 
@@ -77,6 +81,30 @@ def _is_overseer(user, workspace_slug):
     ).exists()
 
 
+def _is_project_admin(user, workspace_slug, project_id):
+    """True if the user is an active ADMIN of THIS project. A project admin oversees their own
+    project — they see every lead in it — but is NOT a workspace-wide overseer: this is
+    project-scoped, so in projects they don't administer they stay team-scoped (no cross-project
+    leak). Verified against the live ProjectMember row."""
+    return ProjectMember.objects.filter(
+        workspace__slug=workspace_slug,
+        project_id=project_id,
+        member=user,
+        is_active=True,
+        role=ROLE.ADMIN.value,
+    ).exists()
+
+
+def _admin_project_ids(user, workspace_slug):
+    """The set of project ids in this workspace where the user is an active project ADMIN — the
+    projects they oversee (see every lead in), used to widen the cross-project scope."""
+    return set(
+        ProjectMember.objects.filter(
+            workspace__slug=workspace_slug, member=user, is_active=True, role=ROLE.ADMIN.value
+        ).values_list("project_id", flat=True)
+    )
+
+
 def _restriction_kind(user, workspace_slug):
     """Classify the acting user's read restriction in this workspace:
       None             -> unrestricted (overseer, OR not an active member -> gated elsewhere)
@@ -118,6 +146,10 @@ def restricted_issue_q(user, workspace_slug, project_id):
     kind = _restriction_kind(user, workspace_slug)
     if kind is None:
         return None
+    # A project admin oversees their OWN project: unrestricted for THIS project (project-scoped,
+    # so they remain team-scoped in projects they don't administer -> no cross-project leak).
+    if _is_project_admin(user, workspace_slug, project_id):
+        return None
     if kind == _KIND_BD:
         return _profile_q(user, workspace_slug, project_id)
     if kind == _KIND_DEV:
@@ -141,11 +173,15 @@ def scope_workspace_issues(queryset, user, workspace_slug):
     kind = _restriction_kind(user, workspace_slug)
     if kind is None:
         return queryset
+    # Projects this user administers -> they see EVERY lead in those (project-scoped overseer),
+    # OR'd with their team-based visibility everywhere else. Empty set -> match nothing extra.
+    admin_ids = _admin_project_ids(user, workspace_slug)
+    admin_q = Q(project_id__in=admin_ids) if admin_ids else _NONE_Q
     if kind == _KIND_DEV:
-        return queryset.filter(_assigned_dev_match_q(user))
+        return queryset.filter(_assigned_dev_match_q(user) | admin_q)
     if kind == _KIND_UNASSIGNED:
-        return queryset.none()
-    # _KIND_BD: per-project profile OR over the member's ProfileAssignment projects.
+        return queryset.filter(admin_q)  # nothing except leads in projects they administer
+    # _KIND_BD: admin projects (all leads) OR per-project profile scope.
     project_ids = set(
         ProfileAssignment.objects.filter(
             bd_member__workspace__slug=workspace_slug,
@@ -153,9 +189,7 @@ def scope_workspace_issues(queryset, user, workspace_slug):
             bd_member__is_active=True,
         ).values_list("project_id", flat=True)
     )
-    if not project_ids:
-        return queryset.none()  # Restricted BD with no assignments anywhere -> nothing.
-    combined = Q()
+    combined = admin_q
     for project_id in project_ids:
         # Per-project: correct Profile field + assigned set (fail-closed per project).
         combined |= Q(project_id=project_id) & _profile_q(user, workspace_slug, project_id)
