@@ -7,6 +7,7 @@
 // components
 import { observer } from "mobx-react";
 import { useParams, usePathname } from "next/navigation";
+import { EUserPermissions, EUserPermissionsLevel } from "@plane/constants";
 import { cn } from "@plane/utils";
 import { TopNavPowerK } from "@/components/navigation";
 import { UserMenuRoot } from "@/components/workspace/sidebar/user-menu-root";
@@ -17,6 +18,7 @@ import { AppSidebarItem } from "@/components/sidebar/sidebar-item";
 import { InboxIcon } from "@plane/propel/icons";
 import useSWR from "swr";
 import { useWorkspaceNotifications } from "@/hooks/store/notifications";
+import { useUserPermissions } from "@/hooks/store/user";
 
 export const TopNavigationRoot = observer(function TopNavigationRoot() {
   // router
@@ -26,8 +28,12 @@ export const TopNavigationRoot = observer(function TopNavigationRoot() {
   // store hooks
   const { unreadNotificationsCount, getUnreadNotificationsCount } = useWorkspaceNotifications();
   const { preferences } = useAppRailPreferences();
+  const { allowPermissions } = useUserPermissions();
 
   const showLabel = preferences.displayMode === "icon_with_label";
+  // BD CRM: the command-K / search trigger is admin-only (the Cmd/Ctrl+K shortcut is
+  // independently gated in GlobalShortcutsProvider). Non-admins get no search entry point.
+  const isWorkspaceAdmin = allowPermissions([EUserPermissions.ADMIN], EUserPermissionsLevel.WORKSPACE);
 
   // Fetch notification count
   useSWR(
@@ -51,10 +57,12 @@ export const TopNavigationRoot = observer(function TopNavigationRoot() {
       <div className="flex-1 shrink-0">
         <WorkspaceMenuRoot variant="top-navigation" />
       </div>
-      {/* Power K Search */}
-      <div className="shrink-0">
-        <TopNavPowerK />
-      </div>
+      {/* Power K Search — workspace admins only */}
+      {isWorkspaceAdmin && (
+        <div className="shrink-0">
+          <TopNavPowerK />
+        </div>
+      )}
       {/* Additional Actions */}
       <div className="flex flex-1 shrink-0 items-center justify-end gap-1">
         <Tooltip tooltipContent="Inbox" position="bottom">

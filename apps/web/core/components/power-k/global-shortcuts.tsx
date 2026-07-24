@@ -7,8 +7,11 @@
 import { useEffect, useRef } from "react";
 import { observer } from "mobx-react";
 import { useParams } from "next/navigation";
+// plane imports
+import { EUserPermissions, EUserPermissionsLevel } from "@plane/constants";
 // hooks
 import { usePowerK } from "@/hooks/store/use-power-k";
+import { useUserPermissions } from "@/hooks/store/user";
 // local imports
 import { detectContextFromURL } from "./core/context-detector";
 import { ShortcutHandler } from "./core/shortcut-handler";
@@ -31,6 +34,16 @@ export const GlobalShortcutsProvider = observer(function GlobalShortcutsProvider
   // store hooks
   const { commandRegistry, isShortcutsListModalOpen, setActiveContext, togglePowerKModal, toggleShortcutsListModal } =
     usePowerK();
+  const { allowPermissions } = useUserPermissions();
+
+  // BD CRM: the command palette (Cmd/Ctrl+K search) is workspace-admin-only. Read the flag
+  // from a ref inside the keydown handler so a non-admin's Cmd+K opens nothing, without
+  // recreating the global listener when permissions resolve.
+  const isWorkspaceAdmin = allowPermissions([EUserPermissions.ADMIN], EUserPermissionsLevel.WORKSPACE);
+  const isWorkspaceAdminRef = useRef(isWorkspaceAdmin);
+  useEffect(() => {
+    isWorkspaceAdminRef.current = isWorkspaceAdmin;
+  }, [isWorkspaceAdmin]);
 
   // Detect context from URL and update store
   useEffect(() => {
@@ -65,7 +78,10 @@ export const GlobalShortcutsProvider = observer(function GlobalShortcutsProvider
     handlerRef.current = new ShortcutHandler(
       commandRegistry,
       () => contextRef.current,
-      () => togglePowerKModal(true)
+      () => {
+        // Non-admins cannot open the command palette (Cmd/Ctrl+K is inert for them).
+        if (isWorkspaceAdminRef.current) togglePowerKModal(true);
+      }
     );
 
     document.addEventListener("keydown", handlerRef.current.handleKeyDown);
