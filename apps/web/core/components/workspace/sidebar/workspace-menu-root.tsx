@@ -12,6 +12,7 @@ import { CirclePlus, LogOut, Mails } from "lucide-react";
 // ui
 import { Menu, Transition } from "@headlessui/react";
 // plane imports
+import { EUserPermissions, EUserPermissionsLevel } from "@plane/constants";
 import { useTranslation } from "@plane/i18n";
 import { ChevronDownIcon } from "@plane/propel/icons";
 import { TOAST_TYPE, setToast } from "@plane/propel/toast";
@@ -23,7 +24,7 @@ import { AppSidebarItem } from "@/components/sidebar/sidebar-item";
 // hooks
 import { useAppTheme } from "@/hooks/store/use-app-theme";
 import { useWorkspace } from "@/hooks/store/use-workspace";
-import { useUser, useUserProfile } from "@/hooks/store/user";
+import { useUser, useUserProfile, useUserPermissions } from "@/hooks/store/user";
 import { useInstance } from "@/hooks/store/use-instance";
 // components
 import { WorkspaceLogo } from "../logo";
@@ -41,9 +42,13 @@ export const WorkspaceMenuRoot = observer(function WorkspaceMenuRoot(props: Work
   const { data: currentUser } = useUser();
   const { signOut } = useUser();
   const { updateUserProfile } = useUserProfile();
+  const { allowPermissions } = useUserPermissions();
   const { currentWorkspace: activeWorkspace, workspaces } = useWorkspace();
   // derived values
   const isWorkspaceCreationDisabled = config?.is_workspace_creation_disabled ?? false;
+  // BD CRM: "Create workspace" and "Workspace invites" are for workspace admins only
+  // (not project admins or team leads). Non-admins get just Sign out.
+  const isWorkspaceAdmin = allowPermissions([EUserPermissions.ADMIN], EUserPermissionsLevel.WORKSPACE);
   // translation
   const { t } = useTranslation();
   // local state
@@ -187,7 +192,7 @@ export const WorkspaceMenuRoot = observer(function WorkspaceMenuRoot(props: Work
                     )}
                   </div>
                   <div className="flex w-full flex-col items-start justify-start gap-2 px-4 py-2 text-13">
-                    {!isWorkspaceCreationDisabled && (
+                    {!isWorkspaceCreationDisabled && isWorkspaceAdmin && (
                       <Link href="/create-workspace" className="w-full">
                         <Menu.Item
                           as="div"
@@ -199,15 +204,17 @@ export const WorkspaceMenuRoot = observer(function WorkspaceMenuRoot(props: Work
                       </Link>
                     )}
 
-                    <Link href="/invitations" className="w-full" onClick={handleItemClick}>
-                      <Menu.Item
-                        as="div"
-                        className="flex items-center gap-2 rounded-sm px-2 py-1 text-13 font-medium text-secondary hover:bg-layer-transparent-hover"
-                      >
-                        <Mails className="h-4 w-4 flex-shrink-0" />
-                        {t("workspace_invites")}
-                      </Menu.Item>
-                    </Link>
+                    {isWorkspaceAdmin && (
+                      <Link href="/invitations" className="w-full" onClick={handleItemClick}>
+                        <Menu.Item
+                          as="div"
+                          className="flex items-center gap-2 rounded-sm px-2 py-1 text-13 font-medium text-secondary hover:bg-layer-transparent-hover"
+                        >
+                          <Mails className="h-4 w-4 flex-shrink-0" />
+                          {t("workspace_invites")}
+                        </Menu.Item>
+                      </Link>
+                    )}
 
                     <div className="w-full">
                       <Menu.Item
