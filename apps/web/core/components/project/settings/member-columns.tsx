@@ -204,11 +204,19 @@ type ProfilesColumnProps = {
  * FOR THIS PROJECT. Only meaningful for team="bd" members; the server enforces the gate,
  * project scope, and validation.
  */
-export const ProfilesColumn = observer(function ProfilesColumn({ rowData, workspaceSlug, projectId }: ProfilesColumnProps) {
+export const ProfilesColumn = observer(function ProfilesColumn({
+  rowData,
+  workspaceSlug,
+  projectId,
+}: ProfilesColumnProps) {
   const {
     workspace: { getWorkspaceMemberDetails },
   } = useMember();
-  const memberPk = getWorkspaceMemberDetails(rowData.member.id)?.id;
+  const memberDetails = getWorkspaceMemberDetails(rowData.member.id);
+  const memberPk = memberDetails?.id;
+  // A BD team lead is an overseer — they see every lead regardless of profile, so profile
+  // scoping does not apply to them (mirrors bd_visibility._is_overseer on the backend).
+  const isTeamLead = !!memberDetails?.is_team_lead;
   const [team, setTeam] = useState<string | null>(null);
   const [available, setAvailable] = useState<{ id: string; name: string }[]>([]);
   const [selected, setSelected] = useState<string[]>([]);
@@ -234,6 +242,17 @@ export const ProfilesColumn = observer(function ProfilesColumn({ rowData, worksp
   }, [workspaceSlug, projectId, memberPk]);
 
   if (team !== "bd") return <span className="text-xs text-placeholder">—</span>;
+
+  // Promoted to BD lead: profile assignments are irrelevant (a lead sees all leads). Show that
+  // plainly instead of a misleading scoped count, and don't offer the editable selector. Any
+  // prior assignments are kept (harmless — ignored while they're a lead) so a later demotion
+  // back to a regular BD restores them.
+  if (isTeamLead)
+    return (
+      <span className="text-xs text-placeholder" title="Team leads see all leads, regardless of profile">
+        All leads
+      </span>
+    );
 
   const save = async (next: string[]) => {
     if (!memberPk) return;
