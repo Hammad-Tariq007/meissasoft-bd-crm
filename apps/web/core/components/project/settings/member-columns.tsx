@@ -214,9 +214,13 @@ export const ProfilesColumn = observer(function ProfilesColumn({
   } = useMember();
   const memberDetails = getWorkspaceMemberDetails(rowData.member.id);
   const memberPk = memberDetails?.id;
-  // A BD team lead is an overseer — they see every lead regardless of profile, so profile
-  // scoping does not apply to them (mirrors bd_visibility._is_overseer on the backend).
-  const isTeamLead = !!memberDetails?.is_team_lead;
+  // Overseers see every lead regardless of profile, so profile scoping does not apply. Mirror
+  // bd_visibility exactly: a BD team lead, a workspace admin/owner (workspace role ADMIN), or a
+  // PROJECT ADMIN of this project (project-scoped overseer). Regular BDs stay profile-scoped.
+  const isUnrestricted =
+    !!memberDetails?.is_team_lead ||
+    Number(memberDetails?.role) === EUserPermissions.ADMIN ||
+    Number(rowData.original_role) === EUserPermissions.ADMIN;
   const [team, setTeam] = useState<string | null>(null);
   const [available, setAvailable] = useState<{ id: string; name: string }[]>([]);
   const [selected, setSelected] = useState<string[]>([]);
@@ -243,13 +247,13 @@ export const ProfilesColumn = observer(function ProfilesColumn({
 
   if (team !== "bd") return <span className="text-xs text-placeholder">—</span>;
 
-  // Promoted to BD lead: profile assignments are irrelevant (a lead sees all leads). Show that
-  // plainly instead of a misleading scoped count, and don't offer the editable selector. Any
-  // prior assignments are kept (harmless — ignored while they're a lead) so a later demotion
-  // back to a regular BD restores them.
-  if (isTeamLead)
+  // Overseer for this project (lead / workspace admin-owner / project admin): profile scoping
+  // does not apply — they see all leads. Show that plainly instead of a misleading scoped count,
+  // and don't offer the editable selector. Any prior assignments are kept (harmless — ignored
+  // while unrestricted) so a later demotion back to a plain BD restores the scoped view.
+  if (isUnrestricted)
     return (
-      <span className="text-xs text-placeholder" title="Team leads see all leads, regardless of profile">
+      <span className="text-xs text-placeholder" title="Sees all leads in this project, regardless of profile">
         All leads
       </span>
     );
