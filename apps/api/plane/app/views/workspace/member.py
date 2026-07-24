@@ -166,6 +166,15 @@ class WorkSpaceMemberViewSet(BaseViewSet):
             team = None
         is_lead = request.data.get("is_team_lead", workspace_member.is_team_lead)
 
+        # BD CRM: a team (BD/Dev) applies to workspace MEMBERS only. An Admin-role member cannot
+        # be assigned a team or lead flag — reject. Clearing to no-team (team=None, is_lead=False)
+        # is still allowed so a stale assignment from before a promotion can be removed.
+        if workspace_member.role == ROLE.ADMIN.value and (team is not None or is_lead):
+            return Response(
+                {"error": "Team assignment does not apply to workspace admins."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
         valid_teams = {choice.value for choice in WorkspaceTeam}
         if team is not None and team not in valid_teams:
             return Response(

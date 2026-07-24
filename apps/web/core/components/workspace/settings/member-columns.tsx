@@ -268,6 +268,15 @@ export const TeamColumn = observer(function TeamColumn({ rowData, workspaceSlug 
   const [isUpdating, setIsUpdating] = useState(false);
 
   if (rowData.is_active === false) return null;
+  // BD CRM: teams (BD/Dev) apply to non-admin members only. A workspace Admin has no team —
+  // render N/A with no control (the backend set_team rejects team-on-admin independently).
+  if (rowData.role === EUserPermissions.ADMIN) {
+    return (
+      <span className="text-xs text-custom-text-400" title="Teams apply to members only">
+        —
+      </span>
+    );
+  }
   const team = rowData.team ?? null;
   const isLead = !!rowData.is_team_lead;
   const teamLabel = TEAM_OPTIONS.find((o) => o.value === team)?.label ?? "Unassigned";
