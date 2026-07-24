@@ -18,7 +18,7 @@ from plane.app.serializers import (
 
 from plane.app.permissions import WorkspaceUserPermission
 
-from plane.db.models import Project, ProjectMember, ProjectUserProperty, WorkspaceMember
+from plane.db.models import Project, ProjectMember, ProjectUserProperty, Workspace, WorkspaceMember
 from plane.bgtasks.project_add_user_email_task import project_add_user_email
 from plane.utils.host import base_host
 from plane.app.permissions.base import allow_permission, ROLE
@@ -206,14 +206,28 @@ class ProjectMemberViewSet(BaseViewSet):
     def partial_update(self, request, slug, project_id, pk):
         project_member = ProjectMember.objects.get(pk=pk, workspace__slug=slug, project_id=project_id, is_active=True)
 
-        # Fetch the workspace role of the project member
+        # Workspace role of the member being edited (the TARGET) — used below to cap the project
+        # role at/below their workspace role.
         workspace_role = WorkspaceMember.objects.get(
             workspace__slug=slug, member=project_member.member, is_active=True
         ).role
-        is_workspace_admin = workspace_role == ROLE.ADMIN.value
+
+        # Privilege-escalation guard (GHSA-494h-3rcq-5g3c): the "workspace admin bypass" for the
+        # role-hierarchy checks must reflect the ACTING user (request.user), NOT the target being
+        # edited. A genuine workspace ADMIN or the workspace OWNER outranks every project role and
+        # may assign any project role to anyone. Verified against the live WorkspaceMember row /
+        # Workspace.owner — never a client-supplied or cached value. A non-workspace-admin (even a
+        # project admin) stays fully subject to the "cannot touch a role >= your own" rules below,
+        # which is exactly what the original advisory closed.
+        is_acting_workspace_admin = (
+            WorkspaceMember.objects.filter(
+                workspace__slug=slug, member=request.user, is_active=True, role=ROLE.ADMIN.value
+            ).exists()
+            or Workspace.objects.filter(slug=slug, owner=request.user).exists()
+        )
 
         # Check if the user is not editing their own role if they are not an admin
-        if request.user.id == project_member.member_id and not is_workspace_admin:
+        if request.user.id == project_member.member_id and not is_acting_workspace_admin:
             return Response(
                 {"error": "You cannot update your own role"},
                 status=status.HTTP_400_BAD_REQUEST,
@@ -228,14 +242,14 @@ class ProjectMemberViewSet(BaseViewSet):
 
         if "role" in request.data:
             # Only Admins can modify roles
-            if requested_project_member.role < ROLE.ADMIN.value and not is_workspace_admin:
+            if requested_project_member.role < ROLE.ADMIN.value and not is_acting_workspace_admin:
                 return Response(
                     {"error": "You do not have permission to update roles"},
                     status=status.HTTP_403_FORBIDDEN,
                 )
 
             # Cannot modify a member whose role is equal to or higher than your own
-            if project_member.role >= requested_project_member.role and not is_workspace_admin:
+            if project_member.role >= requested_project_member.role and not is_acting_workspace_admin:
                 return Response(
                     {"error": "You cannot update the role of a member with a role equal to or higher than your own"},
                     status=status.HTTP_403_FORBIDDEN,
@@ -244,7 +258,7 @@ class ProjectMemberViewSet(BaseViewSet):
             new_role = int(request.data.get("role"))
 
             # Cannot assign a role equal to or higher than your own
-            if new_role >= requested_project_member.role and not is_workspace_admin:
+            if new_role >= requested_project_member.role and not is_acting_workspace_admin:
                 return Response(
                     {"error": "You cannot assign a role equal to or higher than your own"},
                     status=status.HTTP_403_FORBIDDEN,
