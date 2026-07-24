@@ -34,6 +34,10 @@ export const AppSidebar = observer(function AppSidebar() {
     EUserPermissionsLevel.WORKSPACE
   );
 
+  // BD CRM: the workspace-level menu (Workspace heading -> Projects link / Views / Analytics /
+  // "More" extended sidebar) is admin-only. Non-admins get just their Projects list below.
+  const isWorkspaceAdmin = allowPermissions([EUserPermissions.ADMIN], EUserPermissionsLevel.WORKSPACE);
+
   const isFavoriteEmpty = isEmpty(groupedFavorites);
   // Only show the presence "Active" list to members who actually belong to a project. A
   // brand-new workspace member with no project sits at the workspace root, where the widget
@@ -43,7 +47,8 @@ export const AppSidebar = observer(function AppSidebar() {
 
   return (
     <SidebarWrapper title="Projects" quickActions={<SidebarQuickActions />}>
-      <SidebarMenuItems />
+      {/* Workspace-level menu (Projects link / Views / Analytics / More) — admins only. */}
+      {isWorkspaceAdmin && <SidebarMenuItems />}
       {/* Favorites Menu */}
       {canPerformWorkspaceMemberActions && !isFavoriteEmpty && <SidebarFavoritesMenu />}
       {/* Teams List */}
