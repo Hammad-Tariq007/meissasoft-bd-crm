@@ -85,8 +85,13 @@ const SidebarDropdownItem = observer(function SidebarDropdownItem(props: TProps)
               </div>
               <div className="flex w-fit gap-2 text-13 text-tertiary capitalize">
                 <span>{getUserRole(workspace.role)?.toLowerCase() || "guest"}</span>
-                <div className="m-auto h-1 w-1 rounded-full bg-layer-1/50" />
-                <span className="capitalize">{t("member", { count: workspace.total_members || 0 })}</span>
+                {/* BD CRM: member count is visible to workspace admins only. */}
+                {workspace?.role === EUserPermissions.ADMIN && (
+                  <>
+                    <div className="m-auto h-1 w-1 rounded-full bg-layer-1/50" />
+                    <span className="capitalize">{t("member", { count: workspace.total_members || 0 })}</span>
+                  </>
+                )}
               </div>
             </div>
           </div>
