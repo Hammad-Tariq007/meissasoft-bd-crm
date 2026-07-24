@@ -209,6 +209,7 @@ export const CustomFieldValueControl = observer(function CustomFieldValueControl
           projectId={projectId}
           memberIds={devMemberIds}
           multiple={false}
+          showUserDetails
           placeholder={field.is_required ? "Required" : "Empty"}
           buttonVariant="transparent-with-text"
           className="group w-full grow"
